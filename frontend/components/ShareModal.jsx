@@ -1,4 +1,5 @@
 // ShareModal.jsx
+import React from 'react'; 
 import { useState } from 'react';
 
 export default function ShareModal({ campaign, user, onClose, onShared }) {
