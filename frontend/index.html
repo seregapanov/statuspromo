@@ -22,20 +22,5 @@
     <script type="module" src="/main.jsx"></script> 
     <!-- Место для кнопки Telegram Login -->
     <div class="auth-container mt-6"></div>
-    <!-- Инициализация Telegram Login -->
-    <script>
-      import { TelegramLogin } from '/telegram-login.js';
-
-      document.addEventListener('DOMContentLoaded', () => {
-        new TelegramLogin(
-          'statuspromo_bot',        // имя вашего бота
-          '/api/auth/telegram',   // ваш backend endpoint
-          (user) => {
-            console.log('✅ Авторизация успешна:', user);
-            // Здесь можно обновить UI или перенаправить
-          }
-        );
-      });
-    </script>
   </body>
 </html>
