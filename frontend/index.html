@@ -19,13 +19,9 @@
   </head>
   <body class="bg-gray-50 font-sans">
     <div id="root"></div>
-
+    <script type="module" src="/main.jsx"></script> 
     <!-- Место для кнопки Telegram Login -->
     <div class="auth-container mt-6"></div>
-
-    <!-- Подключаем кастомный скрипт -->
-    <script type="module" src="/telegram-login.js"></script>
-
     <!-- Инициализация Telegram Login -->
     <script>
       import { TelegramLogin } from '/telegram-login.js';
