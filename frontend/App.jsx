@@ -1,3 +1,4 @@
+import React from 'react';
 import { useState, useEffect } from 'react';
 import AuthWidget from './components/AuthWidget';
 import Dashboard from './components/Dashboard';
