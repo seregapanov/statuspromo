@@ -8,7 +8,13 @@ export default function App() {
 
   useEffect(() => {
     const saved = localStorage.getItem('tgUser');
-    if (saved) setUser(JSON.parse(saved));
+    if (saved) {
+      try {
+        setUser(JSON.parse(saved));
+      } catch (err) {
+        console.error('Ошибка парсинга tgUser:', err);
+      }
+    }
   }, []);
 
   const onAuth = (userData) => {
