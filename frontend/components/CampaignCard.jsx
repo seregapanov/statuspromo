@@ -6,54 +6,138 @@ export default function CampaignCard({ campaign, onShare }) {
   const [hasError, setHasError] = useState(false);
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:shadow transition-shadow">
-      <div className="flex flex-col md:flex-row">
-        {/* Изображение слева */}
-        <div className="md:w-48 md:h-48 flex-shrink-0 bg-gray-100 relative">
-          {!hasError && campaign.video_url ? (
-            <video
-              src={campaign.video_url}
-              className="absolute inset-0 w-full h-full object-cover"
-              muted
-              loop
-              playsInline
-              onError={() => setHasError(true)}
-            />
-          ) : campaign.image_url ? (
-            <img
-              src={campaign.image_url}
-              alt={campaign.title}
-              className="absolute inset-0 w-full h-full object-cover"
-            />
-          ) : (
-            <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-xs">
-              Нет медиа
-            </div>
-          )}
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        md: { flexDirection: 'row' },
+        border: '1px solid #e5e7eb',
+        borderRadius: '0.75rem',
+        overflow: 'hidden',
+        backgroundColor: 'white',
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+        transition: 'box-shadow 0.2s',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)';
+      }}
+    >
+      {/* Блок с изображением — фиксированная высота 192px */}
+      <div
+        style={{
+          height: '192px',
+          width: 'auto',
+          minWidth: '120px',
+          flexShrink: 0,
+          backgroundColor: '#f3f4f6',
+          borderRight: '1px solid #e5e7eb',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          overflow: 'hidden',
+        }}
+      >
+        {!hasError && campaign.video_url ? (
+          <video
+            src={campaign.video_url}
+            style={{
+              height: '100%',
+              maxWidth: 'none',
+              objectFit: 'contain',
+            }}
+            muted
+            loop
+            playsInline
+            onError={() => setHasError(true)}
+          />
+        ) : campaign.image_url ? (
+          <img
+            src={campaign.image_url}
+            alt={campaign.title}
+            style={{
+              height: '100%',
+              maxWidth: 'none',
+              objectFit: 'contain',
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              fontSize: '0.75rem',
+              color: '#9ca3af',
+              textAlign: 'center',
+              padding: '0.5rem',
+            }}
+          >
+            Нет медиа
+          </div>
+        )}
+      </div>
+
+      {/* Текст и кнопка */}
+      <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', flex: 1 }}>
+        <div>
+          <h3
+            style={{
+              fontSize: '0.875rem',
+              fontWeight: '600',
+              color: '#111827',
+              marginBottom: '0.25rem',
+            }}
+          >
+            {campaign.title}
+          </h3>
+          <p
+            style={{
+              fontSize: '0.875rem',
+              color: '#4b5563',
+              marginBottom: '1rem',
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+            }}
+          >
+            {campaign.description}
+          </p>
         </div>
 
-        {/* Текст и кнопка справа */}
-        <div className="p-5 flex-1 flex flex-col">
-          <div>
-            <h3 className="font-semibold text-gray-900 text-sm mb-1">
-              {campaign.title}
-            </h3>
-            <p className="text-gray-600 text-sm mb-4 line-clamp-2">
-              {campaign.description}
-            </p>
-          </div>
-
-          <div className="mt-auto flex items-center justify-between">
-            <span className="text-sm text-gray-500">
-              🔹 {campaign.points_reward} баллов
-            </span>
-            <button
-              onClick={() => onShare(campaign)}
-              className="text-sm bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition shadow-sm hover:shadow focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-            >
-              Поделиться
-            </button>
-          </div>
+        <div
+          style={{
+            marginTop: 'auto',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <span
+            style={{
+              fontSize: '0.875rem',
+              color: '#6b7280',
+            }}
+          >
+            🔹 {campaign.points_reward} баллов
+          </span>
+          <button
+            onClick={() => onShare(campaign)}
+            style={{
+              fontSize: '0.875rem',
+              backgroundColor: '#2563eb',
+              color: 'white',
+              border: 'none',
+              padding: '0.5rem 1rem',
+              borderRadius: '0.5rem',
+              cursor: 'pointer',
+              transition: 'background-color 0.2s',
+            }}
+            onMouseEnter={(e) => (e.target.style.backgroundColor = '#1d4ed8')}
+            onMouseLeave={(e) => (e.target.style.backgroundColor = '#2563eb')}
+          >
+            Поделиться
+          </button>
         </div>
       </div>
     </div>

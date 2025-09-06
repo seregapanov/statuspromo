@@ -1,93 +1,147 @@
-// ShareModal.jsx
-import React from 'react'; 
-import { useState } from 'react';
+// components/ShareModal.jsx
+
+import React, { useState } from 'react';
 
 export default function ShareModal({ campaign, user, onClose, onShared }) {
   const [caption, setCaption] = useState(
     campaign.caption_template.replace('{link}', '🔗 Присоединяйся!')
   );
-  const [isGenerating, setIsGenerating] = useState(false);
 
-  // Генерация UTM-ссылки
-  const generateLink = () => {
-    const tgLogin = user.username ? `@${user.username}` : `tg${user.telegram_id}`;
-    const utm = campaign.utm_template.replace('{tg_login}', tgLogin);
-    return utm;
-  };
 
-  const shortLink = `https://s.statuspromo.co/c/${Date.now()}`; // имитация короткой ссылки
-  const fullCaption = caption.replace('{link}', shortLink);
+  console.log(user.username)
+  console.log(user.id)
+  console.log(campaign.id)
+  const tgLogin = user.username ? `@${user.username}` : `tg${user.id}`;
+  const baseLink = campaign.target_link || 'https://example.com';
+  const utmTemplate = campaign.utm_template || `${baseLink}?utm_source=telegram_status&utm_content={tg_login}`;
+  const utmLink = utmTemplate.replace('{tg_login}', tgLogin);
+  const fullCaption = caption.replace('{link}', utmLink);
 
-  const handleDownload = async () => {
-    setIsGenerating(true);
-
-    // Имитация скачивания видео
-    setTimeout(() => {
-      setIsGenerating(false);
-      onShared(); // начисляем баллы
-    }, 2000);
-  };
+  const botUrl = `https://t.me/statuspromo_bot?start=share_${campaign.id}`;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl max-w-md w-full max-h-screen overflow-y-auto">
-        <div className="p-5 border-b border-gray-200">
-          <div className="flex justify-between items-center">
-            <h3 className="font-semibold text-gray-900">Поделиться в Telegram</h3>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 text-xl"
-            >
-              &times;
-            </button>
-          </div>
+    <div
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100vw',
+        height: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        zIndex: 1000,
+        overflow: 'auto',
+        padding: '1rem',
+      }}
+    >
+      <div
+        style={{
+          backgroundColor: 'white',
+          borderRadius: '1rem',
+          width: '100%',
+          maxWidth: '28rem',
+          maxHeight: '90vh',
+          overflowY: 'auto',
+          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+        }}
+      >
+        {/* Заголовок */}
+        <div
+          style={{
+            padding: '1.25rem',
+            borderBottom: '1px solid #e5e7eb',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <h3 style={{ fontSize: '1.125rem', fontWeight: '600', color: '#111827' }}>
+            Поделиться в Telegram
+          </h3>
+          <button
+            onClick={onClose}
+            style={{
+              fontSize: '1.5rem',
+              color: '#9ca3af',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+            }}
+          >
+            &times;
+          </button>
         </div>
 
-        <div className="p-5 space-y-5">
-          {/* Превью */}
+        {/* Контент */}
+        <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label
+              style={{
+                display: 'block',
+                fontSize: '0.875rem',
+                fontWeight: '500',
+                color: '#4b5563',
+                marginBottom: '0.5rem',
+              }}
+            >
               Подпись к статусу
             </label>
             <textarea
               value={caption}
               onChange={(e) => setCaption(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-cyan-500 focus:border-transparent resize-none"
+              style={{
+                width: '90%',
+                border: '1px solid #d1d5db',
+                borderRadius: '0.5rem',
+                padding: '0.75rem',
+                fontSize: '0.875rem',
+                resize: 'vertical',
+              }}
               rows="3"
             />
           </div>
 
-          {/* Превью в стиле Telegram */}
-          <div className="bg-gray-100 rounded-xl p-4 text-sm">
-            <div className="text-gray-800 font-medium mb-1">Как будет выглядеть:</div>
-            <div className="text-gray-700 whitespace-pre-wrap">{fullCaption}</div>
-            <div className="text-cyan-600 underline text-xs mt-1">🔗 Присоединяйся!</div>
+          <div
+            style={{
+              backgroundColor: '#f3f4f6',
+              borderRadius: '0.5rem',
+              padding: '1rem',
+              fontSize: '0.875rem',
+            }}
+          >
+            <div style={{ fontWeight: '600', color: '#4b5563', marginBottom: '0.5rem' }}>
+              Как будет выглядеть:
+            </div>
+            <div style={{ whiteSpace: 'pre-wrap', color: '#4b5563' }}>{fullCaption}</div>
           </div>
 
-          {/* Кнопка */}
-          <button
-            onClick={handleDownload}
-            disabled={isGenerating}
-            className="w-full bg-blue-600 text-white font-medium py-3 rounded-xl hover:bg-blue-700 disabled:opacity-70 disabled:cursor-progress transition flex items-center justify-center gap-2"
+          <a
+            href={botUrl}
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              display: 'block',
+              backgroundColor: 'linear-gradient(90deg, #2563eb, #0369a1)',
+              background: 'linear-gradient(90deg, #2563eb, #0369a1)',
+              color: 'white',
+              textAlign: 'center',
+              padding: '0.75rem',
+              borderRadius: '0.5rem',
+              fontWeight: '500',
+              textDecoration: 'none',
+            }}
           >
-            {isGenerating ? (
-              <>
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                Генерация...
-              </>
-            ) : (
-              'Скачать и поделиться'
-            )}
-          </button>
+            📲 Получить материалы в Telegram-боте
+          </a>
 
-          {/* Инструкция */}
-          <div className="text-xs text-gray-500">
+          <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
             <strong>Как опубликовать:</strong>
-            <ol className="list-decimal list-inside mt-1 space-y-1">
-              <li>Скачайте видео</li>
-              <li>Откройте Telegram</li>
-              <li>Прикрепите видео → "Статус"</li>
-              <li>Вставьте подпись и опубликуйте</li>
+            <ol style={{ listStyle: 'decimal', paddingLeft: '1rem', marginTop: '0.25rem', lineHeight: '1.5' }}>
+              <li>Перейдите в бота</li>
+              <li>Получите видео и ссылку</li>
+              <li>Скопируйте и опубликуйте как статус</li>
             </ol>
           </div>
         </div>
