@@ -5,12 +5,26 @@ import React, { useState } from 'react';
 export default function CampaignCard({ campaign, onShare }) {
   const [hasError, setHasError] = useState(false);
 
+  // ✅ Проверка: если campaign нет — не рендерим
+  if (!campaign) {
+    return null;
+  }
+
+  // ✅ Извлекаем поля
+  const { video_url, image_url, title, description, points_reward } = campaign;
+
+  // ✅ Проверяем, есть ли видео и можно ли его показать
+  const showVideo = !hasError && video_url;
+  const showImage = image_url && (!video_url || hasError);
+
   return (
     <div
       style={{
+        width: '240px',
+        minWidth: '240px',
+        flexShrink: 0,
         display: 'flex',
         flexDirection: 'column',
-        md: { flexDirection: 'row' },
         border: '1px solid #e5e7eb',
         borderRadius: '0.75rem',
         overflow: 'hidden',
@@ -25,24 +39,20 @@ export default function CampaignCard({ campaign, onShare }) {
         e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)';
       }}
     >
-      {/* Блок с изображением — фиксированная высота 192px */}
+      {/* Блок с медиа */}
       <div
         style={{
           height: '192px',
-          width: 'auto',
-          minWidth: '120px',
-          flexShrink: 0,
           backgroundColor: '#f3f4f6',
-          borderRight: '1px solid #e5e7eb',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           overflow: 'hidden',
         }}
       >
-        {!hasError && campaign.video_url ? (
+        {showVideo ? (
           <video
-            src={campaign.video_url}
+            src={video_url}
             style={{
               height: '100%',
               maxWidth: 'none',
@@ -53,10 +63,10 @@ export default function CampaignCard({ campaign, onShare }) {
             playsInline
             onError={() => setHasError(true)}
           />
-        ) : campaign.image_url ? (
+        ) : showImage ? (
           <img
-            src={campaign.image_url}
-            alt={campaign.title}
+            src={image_url}
+            alt={title}
             style={{
               height: '100%',
               maxWidth: 'none',
@@ -64,14 +74,7 @@ export default function CampaignCard({ campaign, onShare }) {
             }}
           />
         ) : (
-          <div
-            style={{
-              fontSize: '0.75rem',
-              color: '#9ca3af',
-              textAlign: 'center',
-              padding: '0.5rem',
-            }}
-          >
+          <div style={{ fontSize: '0.75rem', color: '#9ca3af', textAlign: 'center', padding: '0.5rem' }}>
             Нет медиа
           </div>
         )}
@@ -80,15 +83,8 @@ export default function CampaignCard({ campaign, onShare }) {
       {/* Текст и кнопка */}
       <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', flex: 1 }}>
         <div>
-          <h3
-            style={{
-              fontSize: '0.875rem',
-              fontWeight: '600',
-              color: '#111827',
-              marginBottom: '0.25rem',
-            }}
-          >
-            {campaign.title}
+          <h3 style={{ fontSize: '0.875rem', fontWeight: '600', color: '#111827', marginBottom: '0.25rem' }}>
+            {title}
           </h3>
           <p
             style={{
@@ -101,25 +97,13 @@ export default function CampaignCard({ campaign, onShare }) {
               overflow: 'hidden',
             }}
           >
-            {campaign.description}
+            {description}
           </p>
         </div>
 
-        <div
-          style={{
-            marginTop: 'auto',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <span
-            style={{
-              fontSize: '0.875rem',
-              color: '#6b7280',
-            }}
-          >
-            🔹 {campaign.points_reward} баллов
+        <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+            🔹 {points_reward || 0} баллов
           </span>
           <button
             onClick={() => onShare(campaign)}

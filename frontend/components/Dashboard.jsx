@@ -1,70 +1,35 @@
 // components/Dashboard.jsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import CampaignCard from './CampaignCard';
 import ShareModal from './ShareModal';
 import CreateCampaign from './CreateCampaign';
-import { createClient } from '@supabase/supabase-js';
+import supabase from '../supabaseClient';
 
-// 🔧 Замените на свои данные из Supabase
-const supabaseUrl = 'https://hezxfkeflzupndlbkshi.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhlenhma2VmbHp1cG5kbGJrc2hpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcwNzU5MDEsImV4cCI6MjA3MjY1MTkwMX0.qJYyJinI27Zx4bvYBv9d70cs-J3QPrFcwBLNAxz91eg';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
-export default function Dashboard({ user, setUser }) {
+export default function Dashboard({ user }) {
   const [campaigns, setCampaigns] = useState([]);
   const [selectedCampaign, setSelectedCampaign] = useState(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const scrollContainerRef = useRef(null);
+  const [isHovered, setIsHovered] = useState(false);
 
-  // 🔁 Загрузка кампаний из базы
-  const loadCampaigns = async () => {
-    setLoading(true);
-    console.log('🔄 [Dashboard] Запрос к Supabase: загрузка кампаний...');
-
-    try {
-      const { data, error } = await supabase
-        .from('campaigns')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('❌ [Supabase] Ошибка загрузки кампаний:', error);
-        alert('Не удалось загрузить кампании: ' + error.message);
-      } else {
-        console.log('✅ [Supabase] Получено кампаний:', data?.length || 0);
-        console.log('📄 Данные:', data);
-
-        // Фильтр: только валидные кампании
-        const validCampaigns = Array.isArray(data)
-          ? data.filter(camp => camp && typeof camp === 'object' && camp.id)
-          : [];
-
-        console.log('✅ Валидных кампаний после фильтрации:', validCampaigns.length);
-        setCampaigns(validCampaigns);
-      }
-    } catch (err) {
-      console.error('🔥 [Dashboard] Критическая ошибка:', err);
-      alert('Произошла ошибка при загрузке кампаний');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Загружаем при монтировании
+  // Загрузка кампаний
   useEffect(() => {
+    const loadCampaigns = async () => {
+      const { data, error } = await supabase.from('campaigns').select('*');
+      if (error) {
+        console.error('❌ Ошибка загрузки:', error);
+      } else {
+        const valid = data.filter(camp => camp && camp.id);
+        setCampaigns(valid);
+      }
+      setLoading(false);
+    };
     loadCampaigns();
   }, []);
 
-  // Обновляем список после создания новой кампании
-  const handleCreateCampaign = (newCamp) => {
-    console.log('🆕 Новая кампания добавлена:', newCamp);
-    setCampaigns(prev => [newCamp, ...prev]); // Добавляем в начало
-    setIsCreateModalOpen(false);
-  };
-
   const handleShare = (campaign) => {
-    console.log('📤 Поделиться:', campaign);
     setSelectedCampaign(campaign);
   };
 
@@ -73,61 +38,191 @@ export default function Dashboard({ user, setUser }) {
   };
 
   const handleShared = () => {
-    console.log('✅ Публикация подтверждена, баллы начислены');
-    setUser((prev) => ({
-      ...prev,
-      points: (prev.points || 0) + selectedCampaign.points_reward,
-    }));
     handleCloseShareModal();
   };
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-6xl mx-auto px-4 py-8">
-        {/* Приветствие */}
-        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6 mb-8">
-          <div>
-            <h1 className="text-xl font-semibold text-gray-900">
-              Добро пожаловать, {user.first_name || 'Пользователь'}!
-            </h1>
-            <p className="text-sm text-gray-600 mt-1">
-              Поделитесь рекламой через статус и получите вознаграждение
-            </p>
-          </div>
-          <div className="bg-white px-5 py-4 rounded-xl border border-gray-200 shadow-sm min-w-48 text-center">
-            <p className="text-xs text-gray-500 mb-1">Ваш баланс</p>
-            <p className="text-lg font-semibold text-gray-900">
-              {user.points || 0} <span className="text-blue-600">баллов</span>
-            </p>
-            <div className="mt-2 w-8 h-0.5 bg-blue-100 mx-auto rounded"></div>
-          </div>
+  // --- Автоматическая карусель ---
+  useEffect(() => {
+    if (!scrollContainerRef.current || campaigns.length === 0) return;
+
+    const container = scrollContainerRef.current;
+
+    const autoScroll = setInterval(() => {
+      if (isHovered) return; // Останавливаем при наведении
+
+      const maxScroll = container.scrollWidth - container.clientWidth;
+      if (container.scrollLeft >= maxScroll) {
+        container.scrollTo({ left: 0, behavior: 'smooth' }); // В начало
+      } else {
+        container.scrollBy({ left: 240, behavior: 'smooth' }); // Следующая карточка
+      }
+    }, 3000); // Каждые 3 секунды
+
+    return () => clearInterval(autoScroll);
+  }, [campaigns, isHovered]);
+
+  const scrollLeft = () => {
+    scrollContainerRef.current?.scrollBy({ left: -240, behavior: 'smooth' });
+  };
+
+  const scrollRight = () => {
+    scrollContainerRef.current?.scrollBy({ left: 240, behavior: 'smooth' });
+  };
+
+    return (
+    <div>
+      {/* Лента кампаний */}
+      {loading ? (
+        <div className="text-center py-10">Загружаем кампании...</div>
+      ) : campaigns.length === 0 && !user.isBusiness ? (
+        <div className="text-center py-10 text-gray-500 bg-white rounded-xl border border-gray-200">
+          Нет активных кампаний
         </div>
+      ) : (
+        <div
+          className="relative group"
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+          style={{
+            minHeight: '240px',   // ✅ Высота = высоте карточки + немного сверху/снизу
+            display: 'flex',
+            alignItems: 'center', // ✅ Центрируем стрелки по вертикали
+            justifyContent: 'center',
+          }}
+        >
+          {/* Кнопка "влево" */}
+          {/* <button
+            onClick={scrollLeft}
+            className="absolute left-0 top-0 bottom-0 w-8 z-10 flex items-center justify-center 
+                      opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+            style={{
+              background: 'linear-gradient(90deg, rgba(249, 250, 251, 0.8), rgba(249, 250, 251, 0))',
+              cursor: 'pointer',
+            }}
+          >
+            <div className="w-8 h-8 bg-white/70 backdrop-blur-sm rounded-full flex items-center justify-center shadow hover:bg-white/90 transition">
+              ←
+            </div>
+          </button> */}
 
-        {/* Кнопка создания (только для бизнеса) */}
-        {user.isBusiness && (
-          <div className="mb-8">
-            <button
-              onClick={() => setIsCreateModalOpen(true)}
-              className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg text-sm font-medium shadow-sm hover:shadow transition"
-            >
-              ➕ Создать кампанию
-            </button>
-          </div>
-        )}
+          {/* Контейнер с прокруткой */}
+          <div
+            ref={scrollContainerRef}
+            style={{
+              display: 'flex',
+              flexDirection: 'row',
+              gap: '1rem',
+              padding: '1rem 0.5rem',  // ✅ Добавим вертикальный padding
+              overflowX: 'auto',
+              overflowY: 'hidden',
+              scrollBehavior: 'smooth',
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
+              // ❌ Убрали maxHeight
+            }}
+          >
+            {/* Скрыть скроллбар */}
+            <style jsx>{`
+              div::-webkit-scrollbar {
+                display: none;
+              }
+            `}</style>
 
-        {/* Загрузка */}
-        {loading ? (
-          <div className="text-center py-10">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <p className="mt-2 text-gray-600">Загружаем кампании...</p>
-          </div>
-        ) : campaigns.length === 0 ? (
-          <div className="text-center py-10 text-gray-500 text-sm bg-white rounded-xl border border-gray-200">
-            Нет активных кампаний
-          </div>
-        ) : (
-          /* Лента кампаний */
-          <div className="space-y-6">
+            {/* Карточка "Создать" и остальные — как раньше */}
+            {user.isBusiness && (
+              <div
+                style={{
+                  width: '240px',
+                  minWidth: '240px',
+                  flexShrink: 0,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '0.75rem',
+                  overflow: 'hidden',
+                  backgroundColor: 'white',
+                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+                  transition: 'box-shadow 0.2s',
+                  cursor: 'pointer',
+                }}
+              >
+                {/* Блок с плюсом — 192px */}
+                <div
+                  style={{
+                    height: '192px',
+                    backgroundColor: '#f0f9ff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: '3rem',
+                      color: '#3b82f6',
+                      fontWeight: 'bold',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '85%',
+                      height: '85%',
+                      borderRadius: '0.5rem',
+                      backgroundColor: '#eff6ff',
+                      border: '2px dashed #93c5fd',
+                      lineHeight: 1,
+                    }}
+                  >
+                    +
+                  </div>
+                </div>
+
+                {/* Текст и кнопка */}
+                <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', flex: 1 }}>
+                  <div>
+                    <h3 style={{ fontSize: '0.875rem', fontWeight: '600', color: '#111827', marginBottom: '0.25rem' }}>
+                      Создать кампанию
+                    </h3>
+                    <p
+                      style={{
+                        fontSize: '0.875rem',
+                        color: '#4b5563',
+                        marginBottom: '1rem',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      Запустите свою рекламную кампанию
+                    </p>
+                  </div>
+
+                  <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '0.875rem', color: '#6b7280' }}>🚀 Новая</span>
+                    <button
+                      type="button"
+                      style={{
+                        fontSize: '0.875rem',
+                        backgroundColor: '#16a34a',
+                        color: 'white',
+                        border: 'none',
+                        padding: '0.5rem 1rem',
+                        borderRadius: '0.5rem',
+                        cursor: 'pointer',
+                        transition: 'background-color 0.2s',
+                      }}
+                      onMouseEnter={(e) => (e.target.style.backgroundColor = '#15803d')}
+                      onMouseLeave={(e) => (e.target.style.backgroundColor = '#16a34a')}
+                    >
+                      Создать
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Остальные кампании */}
             {campaigns.map((camp) => (
               <CampaignCard
                 key={camp.id}
@@ -136,14 +231,32 @@ export default function Dashboard({ user, setUser }) {
               />
             ))}
           </div>
-        )}
-      </div>
+
+          {/* Кнопка "вправо" */}
+          {/* <button
+            onClick={scrollRight}
+            className="absolute right-0 top-0 bottom-0 w-8 z-10 flex items-center justify-center 
+                      opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+            style={{
+              background: 'linear-gradient(270deg, rgba(249, 250, 251, 0.8), rgba(249, 250, 251, 0))',
+              cursor: 'pointer',
+            }}
+          >
+            <div className="w-8 h-8 bg-white/70 backdrop-blur-sm rounded-full flex items-center justify-center shadow hover:bg-white/90 transition">
+              →
+            </div>
+          </button> */}
+        </div>
+      )}
 
       {/* Модалки */}
       {isCreateModalOpen && (
         <CreateCampaign
           onClose={() => setIsCreateModalOpen(false)}
-          onCampaignCreated={handleCreateCampaign}
+          onCampaignCreated={(newCamp) => {
+            setCampaigns((prev) => [newCamp, ...prev]);
+            setIsCreateModalOpen(false);
+          }}
         />
       )}
 

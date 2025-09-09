@@ -7,12 +7,9 @@ export default function AuthWidget({ onAuth }) {
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container) {
-      console.error('❌ ref: контейнер не найден');
-      return;
-    }
+    if (!container) return;
 
-    // Очищаем
+    // Очистка
     container.innerHTML = '';
 
     // Коллбэк авторизации
@@ -27,21 +24,25 @@ export default function AuthWidget({ onAuth }) {
     script.async = true;
     script.setAttribute('data-telegram-login', 'statuspromo_bot');
     script.setAttribute('data-size', 'large');
-    
-    // 🔧 Критически важно: используем разрешённый домен
-    script.setAttribute('data-auth-url','https://organic-space-capybara-qv7wp7rvgpjfgr4-5173.app.github.dev/auth');
-    
+    //script.setAttribute('data-auth-url', 'https://organic-space-capybara-qv7wp7rvgpjfgr4-3000.app.github.dev//auth');
     script.setAttribute('data-request-access', 'write');
     script.setAttribute('data-onauth', 'onTelegramAuth(user)');
 
-    // Вставляем
+    // Логи загрузки
+    script.onload = () => {
+      console.log('✅ Telegram Widget: загружен');
+    };
+    script.onerror = () => {
+      console.error('❌ Telegram Widget: не загрузился');
+    };
+
     container.appendChild(script);
 
     // Очистка
     return () => {
       delete window.onTelegramAuth;
-      if (script && script.parentNode) {
-        script.remove();
+      if (container.contains(script)) {
+        container.removeChild(script);
       }
     };
   }, [onAuth]);

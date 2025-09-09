@@ -92,6 +92,15 @@ async def handle_confirmation(callback):
         await callback.answer("❌ Кампания не найдена")
         return
 
+    # 1. Проверить, не подтверждал ли уже
+    check_response = requests.get(
+        f"{SUPABASE_URL}/rest/v1/shares?user_id=eq.tg_{user_id}&campaign_id=eq.{camp_id}",
+        headers=HEADERS
+    )
+    if check_response.status_code == 200 and check_response.json():
+        await callback.answer("⚠️ Вы уже подтвердили эту публикацию", show_alert=True)
+        return
+
     # 🔑 Берём баллы из кампании
     points_reward = camp.get("points_reward", 10)  # по умолчанию 10
 
@@ -108,6 +117,7 @@ async def handle_confirmation(callback):
     user = user_response.json()[0]
     new_points = user["points"] + points_reward
 
+    
     # Обновляем баллы
     update_response = requests.patch(
         f"{SUPABASE_URL}/rest/v1/users?id=eq.tg_{user_id}",
@@ -116,6 +126,16 @@ async def handle_confirmation(callback):
     )
 
     if update_response.status_code == 204:
+        ## Сохраняем факт публикации
+        requests.post(
+            f"{SUPABASE_URL}/rest/v1/shares",
+            headers=HEADERS,
+            json={
+                "user_id": f"tg_{user_id}",
+                "campaign_id": camp_id,
+                "timestamp": callback.message.date.isoformat()
+            }
+        )
         await callback.answer(f"✅ Начислено {points_reward} баллов")
         await callback.message.edit_text(
             f"✅ Публикация подтверждена!\n\n"
