@@ -5,6 +5,10 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram import filters
 import requests
 import asyncio
+import uvicorn
+from fastapi import FastAPI
+import threading
+import os
 
 # === Настройки Supabase ===
 SUPABASE_URL = "https://hezxfkeflzupndlbkshi.supabase.co"
@@ -19,20 +23,31 @@ BOT_TOKEN = "8218788965:AAHu00w5c7gTgBeukl6ESnBtPMVS_imDzsw"
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot)
 
+# === FastAPI ===
+app = FastAPI(title="StatusPromo Bot")
+
+@app.get("/")
+def home():
+    return {"status": "Bot is running", "service": "StatusPromo"}
+
+@app.get("/health")
+def health():
+    return {"status": "ok", "bot": "aiogram"}
+
+# === Функции бота ===
+
 def get_campaign(camp_id: str):
-    """Получить кампанию из Supabase"""
     url = f"{SUPABASE_URL}/rest/v1/campaigns?id=eq.{camp_id}"
     response = requests.get(url, headers=HEADERS)
     if response.status_code == 200 and response.json():
         return response.json()[0]
     return None
 
-
 @dp.message_handler(filters.Command("start"))
 async def start_command(message: types.Message):
     args = message.get_args()
     if args.startswith("share_"):
-        camp_id = args[6:]  # обрезаем "share_"
+        camp_id = args[6:]
         camp = get_campaign(camp_id)
         if not camp:
             await message.answer("❌ Кампания не найдена.")
@@ -40,7 +55,6 @@ async def start_command(message: types.Message):
         await send_campaign_materials(message.from_user, camp)
     else:
         await message.answer("Привет! Нажми на ссылку из приложения.")
-
 
 async def send_campaign_materials(user, camp):
     username = user.username or f"tg{user.id}"
@@ -73,7 +87,6 @@ async def send_campaign_materials(user, camp):
     keyboard = InlineKeyboardMarkup()
     keyboard.add(InlineKeyboardButton(text="✅ Опубликовал", callback_data=f"confirm_{camp['id']}"))
     await bot.send_message(user.id, "Нажми, чтобы подтвердить публикацию:", reply_markup=keyboard)
-
 
 @dp.callback_query_handler(lambda c: c.data.startswith("confirm_"))
 async def handle_confirmation(callback: types.CallbackQuery):
@@ -125,8 +138,19 @@ async def handle_confirmation(callback: types.CallbackQuery):
         )
     else:
         await callback.answer("⚠️ Ошибка начисления")
-        print("Ошибка обновления:", update_response.text)
 
+# === Запуск бота в фоне ===
 
-if __name__ == '__main__':
+def run_bot():
     executor.start_polling(dp, skip_updates=True)
+
+# === Запуск сервера ===
+
+if __name__ == "__main__":
+    # Запускаем бота в отдельном потоке
+    bot_thread = threading.Thread(target=run_bot, daemon=True)
+    bot_thread.start()
+
+    # Основной поток — веб-сервер
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
