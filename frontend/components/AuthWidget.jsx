@@ -46,6 +46,7 @@ export default function AuthWidget({ onAuth }) {
     script.async = true;
     script.setAttribute('data-telegram-login', 'statuspromo_bot');
     script.setAttribute('data-size', 'large');
+    script.setAttribute('data-auth-url', 'https://statuspromo.vercel.app/auth');
     script.setAttribute('data-onauth', 'onTelegramAuth(user)');
     script.setAttribute('data-request-access', 'write');
 
