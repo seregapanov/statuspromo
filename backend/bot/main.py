@@ -1,11 +1,10 @@
-# bot/main.py
+# backend/bot/main.py
 
-from aiogram import Bot, Dispatcher
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message
-from aiogram.filters import CommandStart
-from aiogram import F
-import asyncio
+from aiogram import Bot, Dispatcher, executor, types
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram import filters
 import requests
+import asyncio
 
 # === Настройки Supabase ===
 SUPABASE_URL = "https://hezxfkeflzupndlbkshi.supabase.co"
@@ -18,7 +17,7 @@ HEADERS = {
 
 BOT_TOKEN = "8218788965:AAHu00w5c7gTgBeukl6ESnBtPMVS_imDzsw"
 bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher()
+dp = Dispatcher(bot)
 
 def get_campaign(camp_id: str):
     """Получить кампанию из Supabase"""
@@ -28,11 +27,12 @@ def get_campaign(camp_id: str):
         return response.json()[0]
     return None
 
-@dp.message(CommandStart())
-async def start_command(message: Message):
-    args = message.text.split(" ")
-    if len(args) > 1 and args[1].startswith("share_"):
-        camp_id = args[1][6:]  # обрезаем "share_"
+
+@dp.message_handler(filters.Command("start"))
+async def start_command(message: types.Message):
+    args = message.get_args()
+    if args.startswith("share_"):
+        camp_id = args[6:]  # обрезаем "share_"
         camp = get_campaign(camp_id)
         if not camp:
             await message.answer("❌ Кампания не найдена.")
@@ -41,16 +41,12 @@ async def start_command(message: Message):
     else:
         await message.answer("Привет! Нажми на ссылку из приложения.")
 
+
 async def send_campaign_materials(user, camp):
     username = user.username or f"tg{user.id}"
-    
-    # Генерация UTM-ссылки
     utm_link = camp["target_link"] + f"?utm_source=telegram_status&utm_content=@{username}"
-    
-    # Подпись
     caption = camp["caption_template"].replace("{link}", utm_link)
 
-    # Отправка медиа
     if camp.get("video_url"):
         try:
             await bot.send_video(
@@ -74,37 +70,23 @@ async def send_campaign_materials(user, camp):
             parse_mode="HTML"
         )
 
-    # Кнопка подтверждения
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✅ Опубликовал", callback_data=f"confirm_{camp['id']}")]
-    ])
+    keyboard = InlineKeyboardMarkup()
+    keyboard.add(InlineKeyboardButton(text="✅ Опубликовал", callback_data=f"confirm_{camp['id']}"))
     await bot.send_message(user.id, "Нажми, чтобы подтвердить публикацию:", reply_markup=keyboard)
 
-@dp.callback_query(F.data.startswith("confirm_"))
-async def handle_confirmation(callback):
-    print(callback.data)
+
+@dp.callback_query_handler(lambda c: c.data.startswith("confirm_"))
+async def handle_confirmation(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     camp_id = callback.data[8:]
 
-    # Получаем кампанию
     camp = get_campaign(camp_id)
     if not camp:
         await callback.answer("❌ Кампания не найдена")
         return
 
-    # 1. Проверить, не подтверждал ли уже
-    check_response = requests.get(
-        f"{SUPABASE_URL}/rest/v1/shares?user_id=eq.tg_{user_id}&campaign_id=eq.{camp_id}",
-        headers=HEADERS
-    )
-    if check_response.status_code == 200 and check_response.json():
-        await callback.answer("⚠️ Вы уже подтвердили эту публикацию", show_alert=True)
-        return
+    points_reward = camp.get("points_reward", 10)
 
-    # 🔑 Берём баллы из кампании
-    points_reward = camp.get("points_reward", 10)  # по умолчанию 10
-
-    # Получаем пользователя
     user_response = requests.get(
         f"{SUPABASE_URL}/rest/v1/users?id=eq.tg_{user_id}",
         headers=HEADERS
@@ -117,8 +99,6 @@ async def handle_confirmation(callback):
     user = user_response.json()[0]
     new_points = user["points"] + points_reward
 
-    
-    # Обновляем баллы
     update_response = requests.patch(
         f"{SUPABASE_URL}/rest/v1/users?id=eq.tg_{user_id}",
         headers=HEADERS,
@@ -126,7 +106,14 @@ async def handle_confirmation(callback):
     )
 
     if update_response.status_code == 204:
-        ## Сохраняем факт публикации
+        await callback.answer(f"✅ Начислено {points_reward} баллов")
+        await callback.message.edit_text(
+            f"✅ Публикация подтверждена!\n\n"
+            f"Начислено: {points_reward} баллов\n"
+            f"Ваш баланс: {new_points}"
+        )
+
+        # Сохраняем факт публикации
         requests.post(
             f"{SUPABASE_URL}/rest/v1/shares",
             headers=HEADERS,
@@ -136,19 +123,10 @@ async def handle_confirmation(callback):
                 "timestamp": callback.message.date.isoformat()
             }
         )
-        await callback.answer(f"✅ Начислено {points_reward} баллов")
-        await callback.message.edit_text(
-            f"✅ Публикация подтверждена!\n\n"
-            f"Начислено: {points_reward} баллов\n"
-            f"Ваш баланс: {new_points}"
-        )
     else:
         await callback.answer("⚠️ Ошибка начисления")
         print("Ошибка обновления:", update_response.text)
 
-async def main():
-    print("✅ Бот запущен и слушает сообщения...")
-    await dp.start_polling(bot)
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    executor.start_polling(dp, skip_updates=True)
