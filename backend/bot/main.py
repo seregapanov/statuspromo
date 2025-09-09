@@ -7,7 +7,6 @@ import requests
 import asyncio
 import uvicorn
 from fastapi import FastAPI
-import threading
 import os
 
 # === Настройки Supabase ===
@@ -34,7 +33,7 @@ def home():
 def health():
     return {"status": "ok", "bot": "aiogram"}
 
-# === Функции бота ===
+# === Функции бота — без изменений ===
 
 def get_campaign(camp_id: str):
     url = f"{SUPABASE_URL}/rest/v1/campaigns?id=eq.{camp_id}"
@@ -71,7 +70,7 @@ async def send_campaign_materials(user, camp):
             )
         except:
             await bot.send_photo(
-                chat_id=user.id,
+                chat_id=user,
                 photo=camp.get("image_url", "https://via.placeholder.com/800x1422/229ED9/FFFFFF?text=Ad"),
                 caption=caption,
                 parse_mode="HTML"
@@ -109,8 +108,7 @@ async def handle_confirmation(callback: types.CallbackQuery):
         await callback.answer("❌ Пользователь не найден")
         return
 
-    user = user_response.json()[0]
-    new_points = user["points"] + points_reward
+    user_response    new_points = user["points"] + points_reward
 
     update_response = requests.patch(
         f"{SUPABASE_URL}/rest/v1/users?id=eq.tg_{user_id}",
@@ -139,18 +137,27 @@ async def handle_confirmation(callback: types.CallbackQuery):
     else:
         await callback.answer("⚠️ Ошибка начисления")
 
-# === Запуск бота в фоне ===
+# === Запуск: всё в одном цикле ===
 
-def run_bot():
-    executor.start_polling(dp, skip_updates=True)
-
-# === Запуск сервера ===
+async def run_bot():
+    await dp.start_polling()
 
 if __name__ == "__main__":
-    # Запускаем бота в отдельном потоке
-    bot_thread = threading.Thread(target=run_bot, daemon=True)
-    bot_thread.start()
+    # Создаём общий цикл
+    loop = asyncio.get_event_loop()
 
-    # Основной поток — веб-сервер
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    # Запускаем FastAPI в отдельном потоке
+    import threading
+
+    def run_server():
+        port = int(os.environ.get("PORT", 8000))
+        uvicorn.run(app, host="0.0.0.0", port=port, loop="none")
+
+    server_thread = threading.Thread(target=run_server, daemon=True)
+    server_thread.start()
+
+    # Запускаем бота в основном цикле
+    try:
+        loop.run_until_complete(run_bot())
+    except KeyboardInterrupt:
+        print("Bot stopped")
