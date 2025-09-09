@@ -12,11 +12,17 @@ export default function AuthWidget({ onAuth }) {
     // Очистка
     container.innerHTML = '';
 
-    // Коллбэк авторизации
-    window.onTelegramAuth = (user) => {
+    // Убедимся, что функция доступна глобально
+    const handleAuth = (user) => {
       console.log('✅ Авторизация успешна:', user);
       onAuth(user);
     };
+
+    // Добавляем в window
+    window.onTelegramAuth = handleAuth;
+
+    // Проверка: доступна ли функция
+    console.log('[AuthWidget] window.onTelegramAuth:', window.onTelegramAuth);
 
     // Создаём скрипт
     const script = document.createElement('script');
@@ -24,11 +30,10 @@ export default function AuthWidget({ onAuth }) {
     script.async = true;
     script.setAttribute('data-telegram-login', 'statuspromo_bot');
     script.setAttribute('data-size', 'large');
-    //script.setAttribute('data-auth-url', 'https://organic-space-capybara-qv7wp7rvgpjfgr4-3000.app.github.dev//auth');
-    script.setAttribute('data-request-access', 'write');
     script.setAttribute('data-onauth', 'onTelegramAuth(user)');
+    script.setAttribute('data-request-access', 'write');
 
-    // Логи загрузки
+    // Логи
     script.onload = () => {
       console.log('✅ Telegram Widget: загружен');
     };
@@ -40,7 +45,9 @@ export default function AuthWidget({ onAuth }) {
 
     // Очистка
     return () => {
-      delete window.onTelegramAuth;
+      if (window.onTelegramAuth === handleAuth) {
+        delete window.onTelegramAuth;
+      }
       if (container.contains(script)) {
         container.removeChild(script);
       }
