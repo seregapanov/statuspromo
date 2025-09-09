@@ -70,14 +70,14 @@ async def send_campaign_materials(user, camp):
             )
         except:
             await bot.send_photo(
-                chat_id=user,
+                chat_id=user.id,  # ✅ Исправлено
                 photo=camp.get("image_url", "https://via.placeholder.com/800x1422/229ED9/FFFFFF?text=Ad"),
                 caption=caption,
                 parse_mode="HTML"
             )
     else:
         await bot.send_photo(
-            chat_id=user.id,
+            chat_id=user.id,  # ✅ Исправлено
             photo=camp.get("image_url", "https://via.placeholder.com/800x1422/229ED9/FFFFFF?text=Ad"),
             caption=caption,
             parse_mode="HTML"
@@ -86,6 +86,7 @@ async def send_campaign_materials(user, camp):
     keyboard = InlineKeyboardMarkup()
     keyboard.add(InlineKeyboardButton(text="✅ Опубликовал", callback_data=f"confirm_{camp['id']}"))
     await bot.send_message(user.id, "Нажми, чтобы подтвердить публикацию:", reply_markup=keyboard)
+
 
 @dp.callback_query_handler(lambda c: c.data.startswith("confirm_"))
 async def handle_confirmation(callback: types.CallbackQuery):
@@ -108,7 +109,8 @@ async def handle_confirmation(callback: types.CallbackQuery):
         await callback.answer("❌ Пользователь не найден")
         return
 
-    user_response    new_points = user["points"] + points_reward
+    user = user_response.json()[0]  # ✅ Исправлено: добавлено присваивание
+    new_points = user["points"] + points_reward
 
     update_response = requests.patch(
         f"{SUPABASE_URL}/rest/v1/users?id=eq.tg_{user_id}",
@@ -136,6 +138,7 @@ async def handle_confirmation(callback: types.CallbackQuery):
         )
     else:
         await callback.answer("⚠️ Ошибка начисления")
+
 
 # === Запуск: всё в одном цикле ===
 
