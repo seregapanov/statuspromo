@@ -8,6 +8,11 @@ import asyncio
 import uvicorn
 from fastapi import FastAPI
 import os
+import logging
+
+# === Включаем логи aiogram ===
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # === Настройки Supabase ===
 SUPABASE_URL = "https://hezxfkeflzupndlbkshi.supabase.co"
@@ -27,14 +32,14 @@ app = FastAPI(title="StatusPromo Bot")
 
 @app.get("/")
 def home():
+    logger.info("Health check received")
     return {"status": "Bot is running", "service": "StatusPromo"}
 
 @app.get("/health")
 def health():
     return {"status": "ok", "bot": "aiogram"}
 
-# === Функции бота — без изменений ===
-
+# === Функции бота ===
 def get_campaign(camp_id: str):
     url = f"{SUPABASE_URL}/rest/v1/campaigns?id=eq.{camp_id}"
     response = requests.get(url, headers=HEADERS)
@@ -44,6 +49,7 @@ def get_campaign(camp_id: str):
 
 @dp.message_handler(filters.Command("start"))
 async def start_command(message: types.Message):
+    logger.info(f"Получена команда /start от {message.from_user.id}")
     args = message.get_args()
     if args.startswith("share_"):
         camp_id = args[6:]
@@ -70,14 +76,14 @@ async def send_campaign_materials(user, camp):
             )
         except:
             await bot.send_photo(
-                chat_id=user.id,  # ✅ Исправлено
+                chat_id=user.id,
                 photo=camp.get("image_url", "https://via.placeholder.com/800x1422/229ED9/FFFFFF?text=Ad"),
                 caption=caption,
                 parse_mode="HTML"
             )
     else:
         await bot.send_photo(
-            chat_id=user.id,  # ✅ Исправлено
+            chat_id=user.id,
             photo=camp.get("image_url", "https://via.placeholder.com/800x1422/229ED9/FFFFFF?text=Ad"),
             caption=caption,
             parse_mode="HTML"
@@ -87,11 +93,11 @@ async def send_campaign_materials(user, camp):
     keyboard.add(InlineKeyboardButton(text="✅ Опубликовал", callback_data=f"confirm_{camp['id']}"))
     await bot.send_message(user.id, "Нажми, чтобы подтвердить публикацию:", reply_markup=keyboard)
 
-
 @dp.callback_query_handler(lambda c: c.data.startswith("confirm_"))
 async def handle_confirmation(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     camp_id = callback.data[8:]
+    logger.info(f"Подтверждение публикации: пользователь {user_id}, кампания {camp_id}")
 
     camp = get_campaign(camp_id)
     if not camp:
@@ -109,7 +115,7 @@ async def handle_confirmation(callback: types.CallbackQuery):
         await callback.answer("❌ Пользователь не найден")
         return
 
-    user = user_response.json()[0]  # ✅ Исправлено: добавлено присваивание
+    user = user_response.json()[0]
     new_points = user["points"] + points_reward
 
     update_response = requests.patch(
@@ -139,28 +145,28 @@ async def handle_confirmation(callback: types.CallbackQuery):
     else:
         await callback.answer("⚠️ Ошибка начисления")
 
-
 # === Запуск: всё в одном цикле ===
-
 async def run_bot():
+    logger.info("🚀 Запуск бота...")
     await dp.start_polling()
+    logger.info("🛑 Бот остановлен")
 
 if __name__ == "__main__":
-    # Создаём общий цикл
-    loop = asyncio.get_event_loop()
+    logger.info("✅ Сервис запущен. Инициализация...")
 
     # Запускаем FastAPI в отдельном потоке
     import threading
 
     def run_server():
         port = int(os.environ.get("PORT", 8000))
+        logger.info(f"🌐 FastAPI запущен на порту {port}")
         uvicorn.run(app, host="0.0.0.0", port=port, loop="none")
 
     server_thread = threading.Thread(target=run_server, daemon=True)
     server_thread.start()
 
-    # Запускаем бота в основном цикле
+    # Запускаем бота
     try:
-        loop.run_until_complete(run_bot())
+        asyncio.run(run_bot())
     except KeyboardInterrupt:
-        print("Bot stopped")
+        logger.info("Bot stopped by user")
