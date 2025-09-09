@@ -9,22 +9,38 @@ export default function AuthWidget({ onAuth }) {
     const container = containerRef.current;
     if (!container) return;
 
-    // Очистка
     container.innerHTML = '';
 
-    // Убедимся, что функция доступна глобально
+    // Обработчик авторизации
     const handleAuth = (user) => {
       console.log('✅ Авторизация успешна:', user);
       onAuth(user);
     };
 
-    // Добавляем в window
+    // Добавляем в window (для совместимости)
     window.onTelegramAuth = handleAuth;
 
-    // Проверка: доступна ли функция
-    console.log('[AuthWidget] window.onTelegramAuth:', window.onTelegramAuth);
+    // Слушаем postMessage от Telegram
+    const handleMessage = (event) => {
+      // Проверяем источник
+      if (event.origin !== 'https://oauth.telegram.org') return;
 
-    // Создаём скрипт
+      const { data } = event;
+      if (typeof data === 'object' && data?.id) {
+        handleAuth(data);
+      } else if (typeof data === 'string') {
+        try {
+          const user = JSON.parse(data);
+          if (user.id) handleAuth(user);
+        } catch (e) {
+          // Не JSON
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+
+    // Создаём виджет
     const script = document.createElement('script');
     script.src = 'https://telegram.org/js/telegram-widget.js?22';
     script.async = true;
@@ -33,18 +49,14 @@ export default function AuthWidget({ onAuth }) {
     script.setAttribute('data-onauth', 'onTelegramAuth(user)');
     script.setAttribute('data-request-access', 'write');
 
-    // Логи
-    script.onload = () => {
-      console.log('✅ Telegram Widget: загружен');
-    };
-    script.onerror = () => {
-      console.error('❌ Telegram Widget: не загрузился');
-    };
+    script.onload = () => console.log('✅ Widget загружен');
+    script.onerror = () => console.error('❌ Widget: не загрузился');
 
     container.appendChild(script);
 
     // Очистка
     return () => {
+      window.removeEventListener('message', handleMessage);
       if (window.onTelegramAuth === handleAuth) {
         delete window.onTelegramAuth;
       }
@@ -62,8 +74,6 @@ export default function AuthWidget({ onAuth }) {
         justifyContent: 'center',
         margin: '1.5rem 0',
       }}
-    >
-      {/* Telegram Widget появится здесь */}
-    </div>
+    />
   );
 }
