@@ -1,33 +1,79 @@
-// components/AuthSuccess.jsx
+// components/AuthWidget.jsx
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 
-export default function AuthSuccess({ onAuth }) {
+export default function AuthWidget({ onAuth }) {
+  const containerRef = useRef(null);
+
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const userData = {
-      id: urlParams.get('tg_id'),
-      first_name: urlParams.get('first_name'),
-      last_name: urlParams.get('last_name'),
-      username: urlParams.get('username'),
-      photo_url: `https://t.me/i/userpic/320/${urlParams.get('username') || 'unknown'}.jpg`,
+    const container = containerRef.current;
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    // Обработчик авторизации
+    const handleAuth = (user) => {
+      console.log('✅ Авторизация успешна:', user);
+      onAuth(user);
     };
 
-    // Сохраняем в localStorage
-    localStorage.setItem('tgUser', JSON.stringify(userData));
+    // Добавляем в window (для совместимости)
+    window.onTelegramAuth = handleAuth;
 
-    // Вызываем onAuth из App
-    onAuth(userData);
+    // Слушаем postMessage от Telegram
+    const handleMessage = (event) => {
+      // Проверяем источник
+      if (event.origin !== 'https://oauth.telegram.org') return;
 
-    // Очищаем URL, чтобы не было данных
-    window.history.replaceState({}, document.title, "/");
+      const { data } = event;
+      if (typeof data === 'object' && data?.id) {
+        handleAuth(data);
+      } else if (typeof data === 'string') {
+        try {
+          const user = JSON.parse(data);
+          if (user.id) handleAuth(user);
+        } catch (e) {
+          // Не JSON
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+
+    // Создаём виджет
+    const script = document.createElement('script');
+    script.src = 'https://telegram.org/js/telegram-widget.js?22';
+    script.async = true;
+    script.setAttribute('data-telegram-login', 'statuspromo_bot');
+    script.setAttribute('data-size', 'large');
+    script.setAttribute('data-onauth', 'onTelegramAuth(user)');
+    script.setAttribute('data-request-access', 'write');
+
+    script.onload = () => console.log('✅ Widget загружен');
+    script.onerror = () => console.error('❌ Widget: не загрузился');
+
+    container.appendChild(script);
+
+    // Очистка
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      if (window.onTelegramAuth === handleAuth) {
+        delete window.onTelegramAuth;
+      }
+      if (container.contains(script)) {
+        container.removeChild(script);
+      }
+    };
   }, [onAuth]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 px-4">
-      <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-      <p className="mt-4 text-lg text-gray-700">Входим в аккаунт...</p>
-      <p className="text-sm text-gray-500 mt-2">Не закрывайте окно</p>
-    </div>
+    <div
+      ref={containerRef}
+      style={{
+        display: 'flex',
+        justifyContent: 'center',
+        margin: '1.5rem 0',
+      }}
+    />
   );
 }
