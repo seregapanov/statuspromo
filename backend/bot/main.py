@@ -2,7 +2,8 @@
 
 from aiogram import Bot, Dispatcher
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message
-from aiogram.filters import Command
+from aiogram.filters import CommandStart
+from aiogram import F
 import asyncio
 import requests
 
@@ -20,64 +21,36 @@ bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
 def get_campaign(camp_id: str):
+    """Получить кампанию из Supabase"""
     url = f"{SUPABASE_URL}/rest/v1/campaigns?id=eq.{camp_id}"
     response = requests.get(url, headers=HEADERS)
     if response.status_code == 200 and response.json():
         return response.json()[0]
     return None
 
-@dp.message(Command("start"))
+@dp.message(CommandStart())
 async def start_command(message: Message):
-    args = message.text.split(" ", 1)
-    
-    if len(args) > 1:
-        arg = args[1]
-        if arg.startswith("share_"):
-            camp_id = arg[6:]
-            camp = get_campaign(camp_id)
-            if not camp:
-                await message.answer("❌ Кампания не найдена.")
-                return
-            await send_campaign_materials(message.from_user, camp)
+    args = message.text.split(" ")
+    if len(args) > 1 and args[1].startswith("share_"):
+        camp_id = args[1][6:]  # обрезаем "share_"
+        camp = get_campaign(camp_id)
+        if not camp:
+            await message.answer("❌ Кампания не найдена.")
             return
-        elif arg.startswith("auth"):
-            # Специальный режим — вход в веб
-            pass  # Обработаем ниже
-
-    # Простой старт
-    await message.answer("Привет! Нажми на ссылку из приложения.")
-
-@dp.message(Command("profile"))
-async def profile_command(message: Message):
-    user = message.from_user
-    auth_link = f"https://statuspromo.vercel.app/auth-success?tg_id={user.id}&username={user.username or ''}&first_name={user.first_name}&last_name={user.last_name or ''}"
-    
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📱 Открыть профиль", url=auth_link)]
-    ])
-    
-    await message.answer("Ваш профиль в StatusPromo", reply_markup=keyboard)
-
-@dp.message()
-async def any_message(message: Message):
-    # На любое сообщение — предлагаем открыть веб
-    user = message.from_user
-    auth_link = f"https://statuspromo.vercel.app/auth-success?tg_id={user.id}&username={user.username or ''}&first_name={user.first_name}&last_name={user.last_name or ''}"
-    
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✅ Продолжить в приложении", url=auth_link)]
-    ])
-    
-    await message.answer(
-        "👋 Привет! Нажми кнопку ниже, чтобы открыть веб-версию и продолжить.",
-        reply_markup=keyboard
-    )
+        await send_campaign_materials(message.from_user, camp)
+    else:
+        await message.answer("Привет! Нажми на ссылку из приложения.")
 
 async def send_campaign_materials(user, camp):
     username = user.username or f"tg{user.id}"
+    
+    # Генерация UTM-ссылки
     utm_link = camp["target_link"] + f"?utm_source=telegram_status&utm_content=@{username}"
+    
+    # Подпись
     caption = camp["caption_template"].replace("{link}", utm_link)
 
+    # Отправка медиа
     if camp.get("video_url"):
         try:
             await bot.send_video(
@@ -101,31 +74,37 @@ async def send_campaign_materials(user, camp):
             parse_mode="HTML"
         )
 
+    # Кнопка подтверждения
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ Опубликовал", callback_data=f"confirm_{camp['id']}")]
     ])
     await bot.send_message(user.id, "Нажми, чтобы подтвердить публикацию:", reply_markup=keyboard)
 
-@dp.callback_query(lambda c: c.data.startswith("confirm_"))
+@dp.callback_query(F.data.startswith("confirm_"))
 async def handle_confirmation(callback):
+    print(callback.data)
     user_id = callback.from_user.id
     camp_id = callback.data[8:]
 
+    # Получаем кампанию
     camp = get_campaign(camp_id)
     if not camp:
         await callback.answer("❌ Кампания не найдена")
         return
 
-    # Проверка дублей
+    # 1. Проверить, не подтверждал ли уже
     check_response = requests.get(
         f"{SUPABASE_URL}/rest/v1/shares?user_id=eq.tg_{user_id}&campaign_id=eq.{camp_id}",
         headers=HEADERS
     )
     if check_response.status_code == 200 and check_response.json():
-        await callback.answer("⚠️ Вы уже подтвердили", show_alert=True)
+        await callback.answer("⚠️ Вы уже подтвердили эту публикацию", show_alert=True)
         return
 
-    points_reward = camp.get("points_reward", 10)
+    # 🔑 Берём баллы из кампании
+    points_reward = camp.get("points_reward", 10)  # по умолчанию 10
+
+    # Получаем пользователя
     user_response = requests.get(
         f"{SUPABASE_URL}/rest/v1/users?id=eq.tg_{user_id}",
         headers=HEADERS
@@ -138,6 +117,8 @@ async def handle_confirmation(callback):
     user = user_response.json()[0]
     new_points = user["points"] + points_reward
 
+    
+    # Обновляем баллы
     update_response = requests.patch(
         f"{SUPABASE_URL}/rest/v1/users?id=eq.tg_{user_id}",
         headers=HEADERS,
@@ -145,6 +126,7 @@ async def handle_confirmation(callback):
     )
 
     if update_response.status_code == 204:
+        ## Сохраняем факт публикации
         requests.post(
             f"{SUPABASE_URL}/rest/v1/shares",
             headers=HEADERS,
@@ -162,6 +144,7 @@ async def handle_confirmation(callback):
         )
     else:
         await callback.answer("⚠️ Ошибка начисления")
+        print("Ошибка обновления:", update_response.text)
 
 async def main():
     print("✅ Бот запущен и слушает сообщения...")
