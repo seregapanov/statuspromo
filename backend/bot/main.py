@@ -1,18 +1,10 @@
-# backend/bot/main.py
+# bot/main.py
 
-from aiogram import Bot, Dispatcher, executor, types
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram import filters
-import requests
+from aiogram import Bot, Dispatcher
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message
+from aiogram.filters import Command
 import asyncio
-import uvicorn
-from fastapi import FastAPI
-import os
-import logging
-
-# === Включаем логи aiogram ===
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+import requests
 
 # === Настройки Supabase ===
 SUPABASE_URL = "https://hezxfkeflzupndlbkshi.supabase.co"
@@ -25,21 +17,8 @@ HEADERS = {
 
 BOT_TOKEN = "8218788965:AAHu00w5c7gTgBeukl6ESnBtPMVS_imDzsw"
 bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher(bot)
+dp = Dispatcher()
 
-# === FastAPI ===
-app = FastAPI(title="StatusPromo Bot")
-
-@app.get("/")
-def home():
-    logger.info("Health check received")
-    return {"status": "Bot is running", "service": "StatusPromo"}
-
-@app.get("/health")
-def health():
-    return {"status": "ok", "bot": "aiogram"}
-
-# === Функции бота ===
 def get_campaign(camp_id: str):
     url = f"{SUPABASE_URL}/rest/v1/campaigns?id=eq.{camp_id}"
     response = requests.get(url, headers=HEADERS)
@@ -47,19 +26,52 @@ def get_campaign(camp_id: str):
         return response.json()[0]
     return None
 
-@dp.message_handler(filters.Command("start"))
-async def start_command(message: types.Message):
-    logger.info(f"Получена команда /start от {message.from_user.id}")
-    args = message.get_args()
-    if args.startswith("share_"):
-        camp_id = args[6:]
-        camp = get_campaign(camp_id)
-        if not camp:
-            await message.answer("❌ Кампания не найдена.")
+@dp.message(Command("start"))
+async def start_command(message: Message):
+    args = message.text.split(" ", 1)
+    
+    if len(args) > 1:
+        arg = args[1]
+        if arg.startswith("share_"):
+            camp_id = arg[6:]
+            camp = get_campaign(camp_id)
+            if not camp:
+                await message.answer("❌ Кампания не найдена.")
+                return
+            await send_campaign_materials(message.from_user, camp)
             return
-        await send_campaign_materials(message.from_user, camp)
-    else:
-        await message.answer("Привет! Нажми на ссылку из приложения.")
+        elif arg.startswith("auth"):
+            # Специальный режим — вход в веб
+            pass  # Обработаем ниже
+
+    # Простой старт
+    await message.answer("Привет! Нажми на ссылку из приложения.")
+
+@dp.message(Command("profile"))
+async def profile_command(message: Message):
+    user = message.from_user
+    auth_link = f"https://statuspromo.vercel.app/auth-success?tg_id={user.id}&username={user.username or ''}&first_name={user.first_name}&last_name={user.last_name or ''}"
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📱 Открыть профиль", url=auth_link)]
+    ])
+    
+    await message.answer("Ваш профиль в StatusPromo", reply_markup=keyboard)
+
+@dp.message()
+async def any_message(message: Message):
+    # На любое сообщение — предлагаем открыть веб
+    user = message.from_user
+    auth_link = f"https://statuspromo.vercel.app/auth-success?tg_id={user.id}&username={user.username or ''}&first_name={user.first_name}&last_name={user.last_name or ''}"
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Продолжить в приложении", url=auth_link)]
+    ])
+    
+    await message.answer(
+        "👋 Привет! Нажми кнопку ниже, чтобы открыть веб-версию и продолжить.",
+        reply_markup=keyboard
+    )
 
 async def send_campaign_materials(user, camp):
     username = user.username or f"tg{user.id}"
@@ -89,23 +101,31 @@ async def send_campaign_materials(user, camp):
             parse_mode="HTML"
         )
 
-    keyboard = InlineKeyboardMarkup()
-    keyboard.add(InlineKeyboardButton(text="✅ Опубликовал", callback_data=f"confirm_{camp['id']}"))
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Опубликовал", callback_data=f"confirm_{camp['id']}")]
+    ])
     await bot.send_message(user.id, "Нажми, чтобы подтвердить публикацию:", reply_markup=keyboard)
 
-@dp.callback_query_handler(lambda c: c.data.startswith("confirm_"))
-async def handle_confirmation(callback: types.CallbackQuery):
+@dp.callback_query(lambda c: c.data.startswith("confirm_"))
+async def handle_confirmation(callback):
     user_id = callback.from_user.id
     camp_id = callback.data[8:]
-    logger.info(f"Подтверждение публикации: пользователь {user_id}, кампания {camp_id}")
 
     camp = get_campaign(camp_id)
     if not camp:
         await callback.answer("❌ Кампания не найдена")
         return
 
-    points_reward = camp.get("points_reward", 10)
+    # Проверка дублей
+    check_response = requests.get(
+        f"{SUPABASE_URL}/rest/v1/shares?user_id=eq.tg_{user_id}&campaign_id=eq.{camp_id}",
+        headers=HEADERS
+    )
+    if check_response.status_code == 200 and check_response.json():
+        await callback.answer("⚠️ Вы уже подтвердили", show_alert=True)
+        return
 
+    points_reward = camp.get("points_reward", 10)
     user_response = requests.get(
         f"{SUPABASE_URL}/rest/v1/users?id=eq.tg_{user_id}",
         headers=HEADERS
@@ -125,14 +145,6 @@ async def handle_confirmation(callback: types.CallbackQuery):
     )
 
     if update_response.status_code == 204:
-        await callback.answer(f"✅ Начислено {points_reward} баллов")
-        await callback.message.edit_text(
-            f"✅ Публикация подтверждена!\n\n"
-            f"Начислено: {points_reward} баллов\n"
-            f"Ваш баланс: {new_points}"
-        )
-
-        # Сохраняем факт публикации
         requests.post(
             f"{SUPABASE_URL}/rest/v1/shares",
             headers=HEADERS,
@@ -142,31 +154,18 @@ async def handle_confirmation(callback: types.CallbackQuery):
                 "timestamp": callback.message.date.isoformat()
             }
         )
+        await callback.answer(f"✅ Начислено {points_reward} баллов")
+        await callback.message.edit_text(
+            f"✅ Публикация подтверждена!\n\n"
+            f"Начислено: {points_reward} баллов\n"
+            f"Ваш баланс: {new_points}"
+        )
     else:
         await callback.answer("⚠️ Ошибка начисления")
 
-# === Запуск: всё в одном цикле ===
-async def run_bot():
-    logger.info("🚀 Запуск бота...")
-    await dp.start_polling()
-    logger.info("🛑 Бот остановлен")
+async def main():
+    print("✅ Бот запущен и слушает сообщения...")
+    await dp.start_polling(bot)
 
-if __name__ == "__main__":
-    logger.info("✅ Сервис запущен. Инициализация...")
-
-    # Запускаем FastAPI в отдельном потоке
-    import threading
-
-    def run_server():
-        port = int(os.environ.get("PORT", 8000))
-        logger.info(f"🌐 FastAPI запущен на порту {port}")
-        uvicorn.run(app, host="0.0.0.0", port=port, loop="none")
-
-    server_thread = threading.Thread(target=run_server, daemon=True)
-    server_thread.start()
-
-    # Запускаем бота
-    try:
-        asyncio.run(run_bot())
-    except KeyboardInterrupt:
-        logger.info("Bot stopped by user")
+if __name__ == '__main__':
+    asyncio.run(main())
