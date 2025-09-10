@@ -4,11 +4,14 @@ import React, { useState } from 'react';
 
 export default function ShareModal({ campaign, user, onClose, onShared }) {
   const [caption, setCaption] = useState(
-    campaign.caption_template.replace('{link}', '->!')
+    campaign.caption_template//.replace('{link}', '🔗 Присоединяйся!')
   );
-  const [storyUrl, setStoryUrl] = useState(''); // ← новое поле
-  const [isConfirming, setIsConfirming] = useState(false);
 
+
+  console.log(user.username)
+  console.log(user.id)
+  console.log(campaign.id)
+  
   const tgLogin = user.username ? `@${user.username}` : `tg${user.id}`;
   const campaign_id = campaign.id;
   const baseLink = campaign.target_link || 'https://example1.com';
@@ -17,38 +20,6 @@ export default function ShareModal({ campaign, user, onClose, onShared }) {
   const fullCaption = caption.replace('{link}', utmLink);
 
   const botUrl = `https://t.me/statuspromo_bot?start=share_${campaign.id}`;
-
-  const handleConfirm = () => {
-    if (!storyUrl.trim()) {
-      alert('Пожалуйста, введите ссылку на статус');
-      return;
-    }
-
-    // Проверка формата
-    const storyMatch = storyUrl.match(/t\.me\/([^\/]+)\/s\/(\d+)/i);
-    if (!storyMatch) {
-      alert('Неверный формат ссылки. Пример: https://t.me/username/s/123');
-      return;
-    }
-
-    const [, username, storyId] = storyMatch;
-
-    // Проверка, совпадает ли username с пользователем
-    const expectedUsername = user.username;
-    if (expectedUsername && username.toLowerCase() !== expectedUsername.toLowerCase()) {
-      if (!confirm(`Вы указали @${username}, но вы вошли как @${expectedUsername}. Уверены?`)) {
-        return;
-      }
-    }
-
-    setIsConfirming(true);
-
-    // Имитация проверки (на деле — можно проверить HEAD-запросом)
-    setTimeout(() => {
-      onShared();
-      setIsConfirming(false);
-    }, 1500);
-  };
 
   return (
     <div
@@ -98,7 +69,6 @@ export default function ShareModal({ campaign, user, onClose, onShared }) {
               color: '#9ca3af',
               background: 'none',
               border: 'none',
-              padding: '0',
               cursor: 'pointer',
             }}
           >
@@ -124,7 +94,7 @@ export default function ShareModal({ campaign, user, onClose, onShared }) {
               value={caption}
               onChange={(e) => setCaption(e.target.value)}
               style={{
-                width: '100%',
+                width: '90%',
                 border: '1px solid #d1d5db',
                 borderRadius: '0.5rem',
                 padding: '0.75rem',
@@ -147,37 +117,6 @@ export default function ShareModal({ campaign, user, onClose, onShared }) {
               Как будет выглядеть:
             </div>
             <div style={{ whiteSpace: 'pre-wrap', color: '#4b5563' }}>{fullCaption}</div>
-          </div>
-
-          {/* Поле ввода ссылки на статус */}
-          <div>
-            <label
-              style={{
-                display: 'block',
-                fontSize: '0.875rem',
-                fontWeight: '500',
-                color: '#4b5563',
-                marginBottom: '0.5rem',
-              }}
-            >
-              🔗 Ссылка на статус
-            </label>
-            <input
-              type="text"
-              placeholder="https://t.me/username/s/123"
-              value={storyUrl}
-              onChange={(e) => setStoryUrl(e.target.value)}
-              style={{
-                width: '100%',
-                border: '1px solid #d1d5db',
-                borderRadius: '0.5rem',
-                padding: '0.75rem',
-                fontSize: '0.875rem',
-              }}
-            />
-            <p style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
-              Опубликуйте статус и вставьте сюда ссылку
-            </p>
           </div>
 
           <a
@@ -205,30 +144,8 @@ export default function ShareModal({ campaign, user, onClose, onShared }) {
               <li>Перейдите в бота</li>
               <li>Получите видео и ссылку</li>
               <li>Скопируйте и опубликуйте как статус</li>
-              <li>Вставьте ссылку выше и нажмите "Подтвердить"</li>
             </ol>
           </div>
-        </div>
-
-        {/* Кнопка подтверждения */}
-        <div style={{ padding: '1.25rem', borderTop: '1px solid #e5e7eb' }}>
-          <button
-            onClick={handleConfirm}
-            disabled={isConfirming}
-            style={{
-              width: '100%',
-              backgroundColor: isConfirming ? '#6366f1' : '#4f46e5',
-              color: 'white',
-              border: 'none',
-              padding: '0.75rem',
-              borderRadius: '0.5rem',
-              fontWeight: '500',
-              cursor: isConfirming ? 'wait' : 'pointer',
-              transition: 'background-color 0.2s',
-            }}
-          >
-            {isConfirming ? '✅ Проверка...' : '✅ Подтвердить публикацию'}
-          </button>
         </div>
       </div>
     </div>
