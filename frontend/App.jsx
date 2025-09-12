@@ -7,16 +7,28 @@ import Dashboard from './components/Dashboard';
 import StatsPage from './components/StatsPage';
 import supabase from './supabaseClient';
 
+// 🔒 Тестовый пользователь
+const MOCK_USER = {
+  auth_date: 1757701330,
+  first_name: "Сергей",
+  hash: "03ce93026b5ca6d1a56386a13c21b70509e4937a8cb038f97f8bce9bab5bde53",
+  id: 472661531,
+  isBusiness: true,
+  last_name: "Панов",
+  points: 300,
+  username: "panov_serge",
+};
+
 export default function App() {
   const [user, setUser] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showLoginScreen, setShowLoginScreen] = useState(false);
 
-  // При старте: проверяем localStorage и URL
+  // При старте: проверяем URL на ?mock=1
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const useMock = urlParams.get('mock') === '1';
 
-    // 🔹 Режим заглушки
     if (useMock) {
       const mockWithId = { ...MOCK_USER, id: `tg_${MOCK_USER.id}` };
       localStorage.setItem('tgUser', JSON.stringify(mockWithId));
@@ -24,19 +36,9 @@ export default function App() {
       return;
     }
 
-    // 🔹 Попытка восстановить из localStorage
-    if (!user) {
-      const saved = localStorage.getItem('tgUser');
-      if (saved) {
-        try {
-          const userData = JSON.parse(saved);
-          setUser(userData);
-        } catch (err) {
-          console.error('Ошибка парсинга tgUser:', err);
-        }
-      }
-    }
-  }, [user]); // Перепроверяем, если user изменился
+    // ❌ Не восстанавливаем из localStorage автоматически!
+    // Это делаем только при клике "Войти снова"
+  }, []);
 
   const onAuth = async (userData) => {
     const userId = `tg_${userData.id}`;
@@ -68,15 +70,27 @@ export default function App() {
 
     localStorage.setItem('tgUser', JSON.stringify(fullUser));
     setUser(fullUser);
+    setShowLoginScreen(false);
   };
 
   const handleLogout = () => {
-    setUser(null); // ❌ Не удаляем из localStorage
+    setUser(null);
+    setShowLoginScreen(true); // Явно показываем экран входа
     setMenuOpen(false);
   };
 
-  // 🔹 Если нет пользователя — показываем экран входа
-  if (!user) {
+  // 🔁 Если пользователь не установлен — показываем экран входа
+  if (!user && !showLoginScreen) {
+    const savedUser = localStorage.getItem('tgUser');
+    const lastUser = savedUser ? JSON.parse(savedUser) : null;
+
+    // Если есть сохранённый — показываем кнопку "Войти снова"
+    if (lastUser) {
+      setShowLoginScreen(true);
+    }
+  }
+
+  if (!user && showLoginScreen) {
     const savedUser = localStorage.getItem('tgUser');
     const lastUser = savedUser ? JSON.parse(savedUser) : null;
 
@@ -87,7 +101,6 @@ export default function App() {
             <h1 className="text-2xl font-bold text-gray-900 mb-2">StatusPromo</h1>
 
             {lastUser ? (
-              // 🔹 Есть сохранённый пользователь — показываем кнопку "Войти снова"
               <div className="space-y-4">
                 <div className="flex items-center justify-center space-x-3 mb-4">
                   <img
@@ -113,21 +126,19 @@ export default function App() {
                   🔐 Войти снова
                 </button>
 
-                {/* Опционально: вход через Telegram */}
                 <div className="mt-4 pt-4 border-t border-gray-200">
                   <p className="text-sm text-gray-600 mb-3">Или войдите через Telegram:</p>
                   <AuthWidget onAuth={onAuth} />
                 </div>
               </div>
             ) : (
-              // 🔹 Нет сохранённого — обычный виджет
               <>
                 <p className="text-gray-600 mb-6">Войдите через Telegram</p>
                 <AuthWidget onAuth={onAuth} />
               </>
             )}
 
-            {/* 🔧 Кнопка для dev-режима */}
+            {/* Dev-режим */}
             {process.env.NODE_ENV === 'development' && (
               <div className="mt-6 pt-6 border-t border-gray-200">
                 <button
@@ -157,7 +168,6 @@ export default function App() {
           {/* Header */}
           <header className="bg-white border-b border-gray-200 shadow-sm">
             <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-              {/* Логотип и приветствие */}
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-400 rounded-xl flex items-center justify-center shadow-md">
                   <span className="text-white font-bold text-lg">S</span>
@@ -170,7 +180,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Профиль с меню */}
               <div className="relative">
                 <button
                   onClick={() => setMenuOpen(!menuOpen)}
@@ -218,7 +227,6 @@ export default function App() {
             )}
           </header>
 
-          {/* Основной контент */}
           <main className="flex-1 max-w-6xl mx-auto px-4 py-8">
             <Routes>
               <Route path="/dashboard" element={<Dashboard user={user} />} />
