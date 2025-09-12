@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef } from 'react';
 
-// 🔒 Твои тестовые данные (никогда не коммить в продакшен!)
+// 🔒 Твои тестовые данные (не коммить в прод!)
 const MOCK_USER = {
   auth_date: 1757701330,
   first_name: "Сергей",
@@ -14,24 +14,21 @@ const MOCK_USER = {
   username: "panov_serge",
 };
 
-export default function AuthWidget({ onAuth, mock=true }) {
+export default function AuthWidget({ onAuth }) {
   const containerRef = useRef(null);
 
   useEffect(() => {
-    // ✅ Проверяем: если в URL есть параметр ?mock=1 — используем заглушку
     const urlParams = new URLSearchParams(window.location.search);
-    const useMock = urlParams.get('mock') === '1' && mock;
+    const useMock = urlParams.get('mock') === '1';
 
     if (useMock) {
-      console.log('🔧 Используем заглушку пользователя:', MOCK_USER);
-      // Имитируем задержку, как будто виджет загружается
+      console.log('🔧 Используем заглушку:', MOCK_USER);
       const timer = setTimeout(() => {
         onAuth(MOCK_USER);
       }, 800);
       return () => clearTimeout(timer);
     }
 
-    // ⚙️ Реальный виджет (если не заглушка)
     const container = containerRef.current;
     if (!container) return;
 
@@ -93,12 +90,13 @@ export default function AuthWidget({ onAuth, mock=true }) {
         display: 'flex',
         justifyContent: 'center',
         margin: '1.5rem 0',
+        cursor: 'pointer',
       }}
       onClick={() => {
-          const url = new URL(window.location);
-          url.searchParams.set('mock', '1');
-          window.location.href = url.toString(); // Перезагружаем с ?mock=1
-        }}
+        const url = new URL(window.location);
+        url.searchParams.set('mock', '1');
+        window.location.href = url.toString();
+      }}
     />
   );
 }

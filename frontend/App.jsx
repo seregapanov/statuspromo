@@ -11,17 +11,32 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
 
+  // При старте: проверяем localStorage и URL
   useEffect(() => {
-    const saved = localStorage.getItem('tgUser');
-    if (saved) {
-      try {
-        const userData = JSON.parse(saved);
-        setUser(userData);
-      } catch (err) {
-        console.error('Ошибка парсинга:', err);
+    const urlParams = new URLSearchParams(window.location.search);
+    const useMock = urlParams.get('mock') === '1';
+
+    // 🔹 Режим заглушки
+    if (useMock) {
+      const mockWithId = { ...MOCK_USER, id: `tg_${MOCK_USER.id}` };
+      localStorage.setItem('tgUser', JSON.stringify(mockWithId));
+      setUser(mockWithId);
+      return;
+    }
+
+    // 🔹 Попытка восстановить из localStorage
+    if (!user) {
+      const saved = localStorage.getItem('tgUser');
+      if (saved) {
+        try {
+          const userData = JSON.parse(saved);
+          setUser(userData);
+        } catch (err) {
+          console.error('Ошибка парсинга tgUser:', err);
+        }
       }
     }
-  }, []);
+  }, [user]); // Перепроверяем, если user изменился
 
   const onAuth = async (userData) => {
     const userId = `tg_${userData.id}`;
@@ -56,19 +71,79 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('tgUser');
-    setUser(null);
+    setUser(null); // ❌ Не удаляем из localStorage
     setMenuOpen(false);
   };
 
+  // 🔹 Если нет пользователя — показываем экран входа
   if (!user) {
+    const savedUser = localStorage.getItem('tgUser');
+    const lastUser = savedUser ? JSON.parse(savedUser) : null;
+
     return (
       <div className="min-h-screen bg-gray-50">
         <div className="max-w-lg mx-auto px-4 py-12">
           <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
             <h1 className="text-2xl font-bold text-gray-900 mb-2">StatusPromo</h1>
-            <p className="text-gray-600 mb-6">Войдите через Telegram</p>
-            <AuthWidget onAuth={onAuth}  />
+
+            {lastUser ? (
+              // 🔹 Есть сохранённый пользователь — показываем кнопку "Войти снова"
+              <div className="space-y-4">
+                <div className="flex items-center justify-center space-x-3 mb-4">
+                  <img
+                    src={
+                      lastUser.photo_url ||
+                      `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                        lastUser.first_name[0] + (lastUser.last_name ? lastUser.last_name[0] : '')
+                      )}&background=2563EB&color=fff&size=64`
+                    }
+                    alt="Аватар"
+                    className="w-12 h-12 rounded-full"
+                  />
+                  <div className="text-left">
+                    <p className="font-medium text-gray-900">{lastUser.first_name} {lastUser.last_name}</p>
+                    <p className="text-sm text-gray-500">@{lastUser.username}</p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setUser(lastUser)}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition"
+                >
+                  🔐 Войти снова
+                </button>
+
+                {/* Опционально: вход через Telegram */}
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <p className="text-sm text-gray-600 mb-3">Или войдите через Telegram:</p>
+                  <AuthWidget onAuth={onAuth} />
+                </div>
+              </div>
+            ) : (
+              // 🔹 Нет сохранённого — обычный виджет
+              <>
+                <p className="text-gray-600 mb-6">Войдите через Telegram</p>
+                <AuthWidget onAuth={onAuth} />
+              </>
+            )}
+
+            {/* 🔧 Кнопка для dev-режима */}
+            {process.env.NODE_ENV === 'development' && (
+              <div className="mt-6 pt-6 border-t border-gray-200">
+                <button
+                  onClick={() => {
+                    const url = new URL(window.location);
+                    url.searchParams.set('mock', '1');
+                    window.location.href = url.toString();
+                  }}
+                  className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-100 hover:bg-blue-200 text-blue-800 text-sm font-medium rounded-lg transition"
+                >
+                  <span>🔧</span>
+                  <span>Войти как Сергей (демо)</span>
+                </button>
+                <p className="text-xs text-gray-500 mt-2">Только для разработки</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -131,7 +206,7 @@ export default function App() {
                       <span>Выйти</span>
                     </button>
                   </div>
-                )}  
+                )}
               </div>
             </div>
 
