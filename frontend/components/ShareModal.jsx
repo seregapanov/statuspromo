@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 
 export default function ShareModal({ campaign, user, onClose, onShared }) {
   const [caption, setCaption] = useState(
-    campaign.caption_template//.replace('{link}', '🔗 Присоединяйся!')
+    campaign.caption_template.replace('{link}', '🔗')
   );
 
 

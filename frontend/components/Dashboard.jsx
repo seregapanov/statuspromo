@@ -145,6 +145,7 @@ export default function Dashboard({ user }) {
                   transition: 'box-shadow 0.2s',
                   cursor: 'pointer',
                 }}
+                onClick={() => setIsCreateModalOpen(true)} 
               >
                 {/* Блок с плюсом — 192px */}
                 <div

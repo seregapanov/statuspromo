@@ -2,7 +2,8 @@
 
 from aiogram import Bot, Dispatcher
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message
-from aiogram.filters import CommandStart, Command
+from aiogram.filters import CommandStart
+from aiogram import F
 from aiogram.utils.markdown import hlink
 import asyncio
 import requests
@@ -20,6 +21,11 @@ HEADERS = {
 BOT_TOKEN = "8218788965:AAHu00w5c7gTgBeukl6ESnBtPMVS_imDzsw"
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
+
+# === Хранение состояния ===
+# В реальном проекте — используй Redis или базу
+# Здесь — простой словарь (работает при одном инстансе)
+pending_confirmation = {}  # { user_id: camp_id }
 
 def get_campaign(camp_id: str):
     url = f"{SUPABASE_URL}/rest/v1/campaigns?id=eq.{camp_id}"
@@ -44,7 +50,7 @@ async def start_command(message: Message):
 async def send_campaign_materials(user, camp):
     username = user.username or f"tg{user.id}"
     utm_link = camp["target_link"] + f"?utm_source=telegram_status&utm_content=@{username}"
-    caption = camp["caption_template"].replace("{link}", hlink('->', utm_link))
+    caption = camp["caption_template"].replace("{link}",  hlink('🔗', utm_link))
 
     if camp.get("video_url"):
         try:
@@ -69,25 +75,16 @@ async def send_campaign_materials(user, camp):
             parse_mode="HTML"
         )
 
+    # Кнопка подтверждения
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ Опубликовал", callback_data=f"confirm_{camp['id']}")]
     ])
-    await bot.send_message(
-        user.id,
-        "Нажми, чтобы подтвердить публикацию:\n\n"
-        "Или пришли ссылку на статус: https://t.me/username/s/123",
-        reply_markup=keyboard
-    )
+    await bot.send_message(user.id, "Нажми, чтобы подтвердить публикацию:", reply_markup=keyboard)
 
-@dp.callback_query(lambda c: c.data.startswith("confirm_"))
+@dp.callback_query(F.data.startswith("confirm_"))
 async def handle_confirmation(callback):
     user_id = callback.from_user.id
     camp_id = callback.data[8:]
-
-    camp = get_campaign(camp_id)
-    if not camp:
-        await callback.answer("❌ Кампания не найдена")
-        return
 
     # Проверка дублей
     check_response = requests.get(
@@ -98,108 +95,99 @@ async def handle_confirmation(callback):
         await callback.answer("⚠️ Вы уже подтвердили", show_alert=True)
         return
 
-    points_reward = camp.get("points_reward", 10)
-    user_response = requests.get(
-        f"{SUPABASE_URL}/rest/v1/users?id=eq.tg_{user_id}",
-        headers=HEADERS
+    # Сохраняем, что пользователь хочет подтвердить
+    pending_confirmation[user_id] = camp_id
+
+    # Уведомляем
+    await callback.answer("✅ Отлично! Теперь пришлите ссылку на статус: https://t.me/username/s/123")
+
+    # Редактируем сообщение
+    await callback.message.edit_text(
+        "✅ Отлично! Теперь пришлите ссылку на статус:\n\n"
+        "Пример: <code>https://t.me/username/s/123</code>",
+        parse_mode="HTML"
     )
 
-    if user_response.status_code != 200 or not user_response.json():
-        await callback.answer("❌ Пользователь не найден")
-        return
+# === Регулярное выражение для ссылки на статус ===
+STORY_URL_PATTERN = re.compile(r'https?://t\.me/([^/]+)/s/(\d+)', re.IGNORECASE)
 
-    user = user_response.json()[0]
-    new_points = user["points"] + points_reward
+def validate_story_url(url: str):
+    # 1. Проверка формата
+    match = re.search(r'https?://t\.me/([^/]+)/s/(\d+)', url, re.IGNORECASE)
+    if not match:
+        return False, "Неверный формат ссылки"
 
-    update_response = requests.patch(
-        f"{SUPABASE_URL}/rest/v1/users?id=eq.tg_{user_id}",
-        headers=HEADERS,
-        json={"points": new_points}
-    )
+    username, story_id = match.groups()
 
-    if update_response.status_code == 204:
-        requests.post(
-            f"{SUPABASE_URL}/rest/v1/shares",
-            headers=HEADERS,
-            json={
-                "user_id": f"tg_{user_id}",
-                "campaign_id": camp_id,
-                "timestamp": callback.message.date.isoformat()
-            }
-        )
-        await callback.answer(f"✅ Начислено {points_reward} баллов")
-        await callback.message.edit_text(
-            f"✅ Публикация подтверждена!\n\n"
-            f"Начислено: {points_reward} баллов\n"
-            f"Ваш баланс: {new_points}"
-        )
-    else:
-        await callback.answer("⚠️ Ошибка начисления")
+    # 2. Проверка доступности
+    try:
+        response = requests.head(url, timeout=8, headers={
+            "User-Agent": "StatusPromo Bot/1.0"
+        }, allow_redirects=True)
+        
+        print('text:',response.text)
+        print('content:',response.content)
+        print('content:',response.headers)
 
-# === Новый хендлер: приём ссылки на статус ===
-STORY_URL_PATTERN = re.compile(r't\.me/([^/]+)/s/(\d+)', re.IGNORECASE)
+        if response.status_code == 200:
+            return True, "OK"
+        elif response.status_code == 404:
+            return False, "Статус не найден (404)"
+        else:
+            return False, f"Ошибка: {response.status_code}"
+
+    except requests.exceptions.Timeout:
+        return False, "Таймаут при проверке"
+    except requests.exceptions.RequestException as e:
+        return False, f"Ошибка сети: {str(e)}"
+
 
 @dp.message()
 async def handle_story_link(message: Message):
-    text = message.text.strip()
+    user_id = message.from_user.id
 
-    # Ищем ссылку на статус
+    if user_id not in pending_confirmation:
+        return
+
+    text = message.text.strip()
     match = STORY_URL_PATTERN.search(text)
     if not match:
-        # Не ссылка на статус — игнорируем или помочь
-        if message.chat.type == 'private':
-            await message.reply(
-                "📩 Привет! Чтобы подтвердить публикацию:\n\n"
-                "1. Опубликуй статус с материалом\n"
-                "2. Пришли сюда ссылку: https://t.me/username/s/123"
-            )
+        await message.reply("❌ Пришлите ссылку в формате: https://t.me/username/s/123")
+        return
+
+    story_url = match.group(0)
+
+    # 🔍 Проверяем доступность
+    is_available, reason = validate_story_url(story_url)
+    if not is_available:
+        await message.reply(f"❌ Не удалось подтвердить статус:\n\n{reason}")
         return
 
     username_in_link = match.group(1)
     story_id = match.group(2)
 
-    # Проверим, совпадает ли username
+    # Проверка: совпадает ли username
     user = message.from_user
     if user.username and user.username.lower() != username_in_link.lower():
         await message.reply(
             f"⚠️ Вы указали @{username_in_link}, но вы вошли как @{user.username}.\n"
-            "Убедитесь, что публикуете с правильного аккаунта."
+            "Убедитесь, что публикуете с правильного аккаунта.",
         )
         return
 
-    # Здесь можно добавить проверку через HEAD-запрос (опционально)
+    # === Все проверки пройдены — начисляем баллы ===
+    camp_id = pending_confirmation.pop(user_id)  # Удаляем из ожидания
+    camp = get_campaign(camp_id)
 
-    # Начисляем баллы за публикацию
-    await confirm_user_publication(user, message)
-
-async def confirm_user_publication(user, message):
-    # Логика начисления (можно вынести в отдельную функцию)
-    # Повторяем код из handle_confirmation, но без callback
-
-    # Проверим, не подтверждал ли уже
-    check_response = requests.get(
-        f"{SUPABASE_URL}/rest/v1/shares?user_id=eq.tg_{user.id}",
-        headers=HEADERS
-    )
-    if check_response.status_code == 200 and check_response.json():
-        await message.reply("⚠️ Вы уже подтвердили публикацию.")
+    if not camp:
+        await message.reply("❌ Ошибка: кампания не найдена.")
         return
 
-    # Получаем любую активную кампанию (или последнюю)
-    camp_response = requests.get(
-        f"{SUPABASE_URL}/rest/v1/campaigns?order=created_at.desc&limit=1",
-        headers=HEADERS
-    )
-    if not camp_response.json():
-        await message.reply("❌ Нет активных кампаний.")
-        return
-
-    camp = camp_response.json()[0]
     points_reward = camp.get("points_reward", 10)
 
     # Получаем пользователя
     user_response = requests.get(
-        f"{SUPABASE_URL}/rest/v1/users?id=eq.tg_{user.id}",
+        f"{SUPABASE_URL}/rest/v1/users?id=eq.tg_{user_id}",
         headers=HEADERS
     )
     if user_response.status_code != 200 or not user_response.json():
@@ -211,7 +199,7 @@ async def confirm_user_publication(user, message):
 
     # Обновляем баллы
     update_response = requests.patch(
-        f"{SUPABASE_URL}/rest/v1/users?id=eq.tg_{user.id}",
+        f"{SUPABASE_URL}/rest/v1/users?id=eq.tg_{user_id}",
         headers=HEADERS,
         json={"points": new_points}
     )
@@ -222,9 +210,10 @@ async def confirm_user_publication(user, message):
             f"{SUPABASE_URL}/rest/v1/shares",
             headers=HEADERS,
             json={
-                "user_id": f"tg_{user.id}",
-                "campaign_id": camp["id"],
-                "timestamp": message.date.isoformat()
+                "user_id": f"tg_{user_id}",
+                "campaign_id": camp_id,
+                "timestamp": message.date.isoformat(),
+                "story_url": f"https://t.me/{username_in_link}/s/{story_id}"
             }
         )
         await message.reply(
