@@ -2,27 +2,49 @@
 
 import React, { useEffect, useRef } from 'react';
 
+// 🔒 Твои тестовые данные (никогда не коммить в продакшен!)
+const MOCK_USER = {
+  auth_date: 1757701330,
+  first_name: "Сергей",
+  hash: "03ce93026b5ca6d1a56386a13c21b70509e4937a8cb038f97f8bce9bab5bde53",
+  id: 472661531,
+  isBusiness: true,
+  last_name: "Панов",
+  points: 300,
+  username: "panov_serge",
+};
+
 export default function AuthWidget({ onAuth }) {
   const containerRef = useRef(null);
 
   useEffect(() => {
+    // ✅ Проверяем: если в URL есть параметр ?mock=1 — используем заглушку
+    const urlParams = new URLSearchParams(window.location.search);
+    const useMock = urlParams.get('mock') === '1';
+
+    if (useMock) {
+      console.log('🔧 Используем заглушку пользователя:', MOCK_USER);
+      // Имитируем задержку, как будто виджет загружается
+      const timer = setTimeout(() => {
+        onAuth(MOCK_USER);
+      }, 800);
+      return () => clearTimeout(timer);
+    }
+
+    // ⚙️ Реальный виджет (если не заглушка)
     const container = containerRef.current;
     if (!container) return;
 
     container.innerHTML = '';
 
-    // Обработчик авторизации
     const handleAuth = (user) => {
       console.log('✅ Авторизация успешна:', user);
       onAuth(user);
     };
 
-    // Добавляем в window (для совместимости)
     window.onTelegramAuth = handleAuth;
 
-    // Слушаем postMessage от Telegram
     const handleMessage = (event) => {
-      // Проверяем источник
       if (event.origin !== 'https://oauth.telegram.org') return;
 
       const { data } = event;
@@ -33,14 +55,13 @@ export default function AuthWidget({ onAuth }) {
           const user = JSON.parse(data);
           if (user.id) handleAuth(user);
         } catch (e) {
-          // Не JSON
+          // ignore
         }
       }
     };
 
     window.addEventListener('message', handleMessage);
 
-    // Создаём виджет
     const script = document.createElement('script');
     script.src = 'https://telegram.org/js/telegram-widget.js?22';
     script.async = true;
@@ -54,7 +75,6 @@ export default function AuthWidget({ onAuth }) {
 
     container.appendChild(script);
 
-    // Очистка
     return () => {
       window.removeEventListener('message', handleMessage);
       if (window.onTelegramAuth === handleAuth) {
