@@ -94,6 +94,11 @@ export default function AuthWidget({ onAuth, mock=true }) {
         justifyContent: 'center',
         margin: '1.5rem 0',
       }}
+      onClick={() => {
+          const url = new URL(window.location);
+          url.searchParams.set('mock', '1');
+          window.location.href = url.toString(); // Перезагружаем с ?mock=1
+        }}
     />
   );
 }
