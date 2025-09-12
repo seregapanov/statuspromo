@@ -123,13 +123,13 @@ export default function App() {
                   onClick={() => setUser(lastUser)}
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition"
                 >
-                  🔐 Войти снова
+                  🔐 Войти
                 </button>
 
-                <div className="mt-4 pt-4 border-t border-gray-200">
+                {/* <div className="mt-4 pt-4 border-t border-gray-200">
                   <p className="text-sm text-gray-600 mb-3">Или войдите через Telegram:</p>
                   <AuthWidget onAuth={onAuth} />
-                </div>
+                </div> */}
               </div>
             ) : (
               <>
@@ -137,24 +137,7 @@ export default function App() {
                 <AuthWidget onAuth={onAuth} />
               </>
             )}
-
-            {/* Dev-режим */}
-            {/* {process.env.NODE_ENV === 'development' && (
-              <div className="mt-6 pt-6 border-t border-gray-200">
-                <button
-                  onClick={() => {
-                    const url = new URL(window.location);
-                    url.searchParams.set('mock', '1');
-                    window.location.href = url.toString();
-                  }}
-                  className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-100 hover:bg-blue-200 text-blue-800 text-sm font-medium rounded-lg transition"
-                >
-                  <span>🔧</span>
-                  <span>Войти как Сергей</span>
-                </button>
-                <p className="text-xs text-gray-500 mt-2">Только для разработки</p>
-              </div>
-            )} */}
+            
           </div>
         </div>
       </div>
