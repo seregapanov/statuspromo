@@ -139,7 +139,7 @@ export default function App() {
             )}
 
             {/* Dev-режим */}
-            {process.env.NODE_ENV === 'development' && (
+            {/* {process.env.NODE_ENV === 'development' && (
               <div className="mt-6 pt-6 border-t border-gray-200">
                 <button
                   onClick={() => {
@@ -154,7 +154,7 @@ export default function App() {
                 </button>
                 <p className="text-xs text-gray-500 mt-2">Только для разработки</p>
               </div>
-            )}
+            )} */}
           </div>
         </div>
       </div>
