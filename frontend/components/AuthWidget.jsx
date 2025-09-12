@@ -14,13 +14,13 @@ const MOCK_USER = {
   username: "panov_serge",
 };
 
-export default function AuthWidget({ onAuth }) {
+export default function AuthWidget({ onAuth, mock=true }) {
   const containerRef = useRef(null);
 
   useEffect(() => {
     // ✅ Проверяем: если в URL есть параметр ?mock=1 — используем заглушку
     const urlParams = new URLSearchParams(window.location.search);
-    const useMock = urlParams.get('mock') === '1';
+    const useMock = urlParams.get('mock') === '1' && mock;
 
     if (useMock) {
       console.log('🔧 Используем заглушку пользователя:', MOCK_USER);
