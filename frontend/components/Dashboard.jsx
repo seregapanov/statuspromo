@@ -1,41 +1,39 @@
 {/* Лента кампаний */}
+{/* Лента кампаний */}
 {loading ? (
-  <div className="text-center py-10">Загружаем кампании...</div>
+  <div className="text-center py-8 px-4">Загружаем кампании...</div>
 ) : campaigns.length === 0 && !user.isBusiness ? (
-  <div className="text-center py-10 text-gray-500 bg-white rounded-xl border border-gray-200">
+  <div className="text-center py-8 px-4 text-gray-500 bg-white rounded-xl border border-gray-200 mx-4">
     Нет активных кампаний
   </div>
 ) : (
   <div
-    className="relative group"
+    className="relative px-4"
     onMouseEnter={() => setIsHovered(true)}
     onMouseLeave={() => setIsHovered(false)}
     style={{
       minHeight: '240px',
       display: 'flex',
       alignItems: 'center',
-      justifyContent: 'center',
-      padding: '0 1rem', // ← Добавим отступы по бокам
-      margin: '0 -1rem', // ← Компенсируем, если нужно
-      overflow: 'visible',
     }}
   >
-    {/* Контейнер с прокруткой */}
+    {/* Контейнер прокрутки */}
     <div
       ref={scrollContainerRef}
+      className="flex flex-row gap-4 pb-2"
       style={{
         display: 'flex',
         flexDirection: 'row',
         gap: '1rem',
-        padding: '1rem 0.5rem',
+        padding: '0.5rem 0 0.5rem 0.5rem',
         overflowX: 'auto',
         overflowY: 'hidden',
         scrollBehavior: 'smooth',
+        WebkitOverflowScrolling: 'touch', // Плавность на iOS
         scrollbarWidth: 'none', // Firefox
         msOverflowStyle: 'none', // IE/Edge
-        WebkitOverflowScrolling: 'touch', // Плавность на iOS
-        maxWidth: '100vw', // 🔒 Не выходит за экран
-        width: '100%',
+        maxWidth: '100vw', // 🔒 Не больше ширины экрана
+        boxSizing: 'border-box',
       }}
     >
       {/* Скрыть скроллбар */}
@@ -48,10 +46,10 @@
       {/* Карточка "Создать" */}
       {user.isBusiness && (
         <div
+          className="flex-shrink-0"
           style={{
-            width: '240px',
-            minWidth: '240px', // ✅ Фиксированная ширина, но не растягивается
-            flexShrink: 0, // ⚠️ Не сжимается
+            width: '220px', // 🔽 Уменьшено для мобильных
+            minWidth: '220px',
             display: 'flex',
             flexDirection: 'column',
             border: '1px solid #e5e7eb',
@@ -67,7 +65,7 @@
           {/* Блок с плюсом */}
           <div
             style={{
-              height: '192px',
+              height: '170px', // 🔽 Уменьшено
               backgroundColor: '#f0f9ff',
               display: 'flex',
               alignItems: 'center',
@@ -76,14 +74,14 @@
           >
             <div
               style={{
-                fontSize: '3rem',
+                fontSize: '2.5rem',
                 color: '#3b82f6',
                 fontWeight: 'bold',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                width: '85%',
-                height: '85%',
+                width: '80%',
+                height: '80%',
                 borderRadius: '0.5rem',
                 backgroundColor: '#eff6ff',
                 border: '2px dashed #93c5fd',
@@ -95,16 +93,16 @@
           </div>
 
           {/* Текст и кнопка */}
-          <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', flex: 1 }}>
+          <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', flex: 1 }}>
             <div>
               <h3 style={{ fontSize: '0.875rem', fontWeight: '600', color: '#111827', marginBottom: '0.25rem' }}>
                 Создать кампанию
               </h3>
               <p
                 style={{
-                  fontSize: '0.875rem',
+                  fontSize: '0.75rem', // 🔽 Мельче текст
                   color: '#4b5563',
-                  marginBottom: '1rem',
+                  marginBottom: '0.75rem',
                   display: '-webkit-box',
                   WebkitLineClamp: 2,
                   WebkitBoxOrient: 'vertical',
@@ -116,15 +114,15 @@
             </div>
 
             <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '0.875rem', color: '#6b7280' }}>🚀 Новая</span>
+              <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>🚀</span>
               <button
                 type="button"
                 style={{
-                  fontSize: '0.875rem',
+                  fontSize: '0.75rem',
                   backgroundColor: '#16a34a',
                   color: 'white',
                   border: 'none',
-                  padding: '0.5rem 1rem',
+                  padding: '0.4rem 0.75rem',
                   borderRadius: '0.5rem',
                   cursor: 'pointer',
                   transition: 'background-color 0.2s',
@@ -149,6 +147,11 @@
           key={camp.id}
           campaign={camp}
           onShare={handleShare}
+          style={{
+            width: '220px',
+            minWidth: '220px',
+            flexShrink: 0,
+          }}
         />
       ))}
     </div>
