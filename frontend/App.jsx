@@ -36,8 +36,15 @@ export default function App() {
       return;
     }
 
-    // ❌ Не восстанавливаем из localStorage автоматически!
-    // Это делаем только при клике "Войти снова"
+    const saved = localStorage.getItem('tgUser');
+    if (saved) {
+      try {
+        const userData = JSON.parse(saved);
+        setUser(userData);
+      } catch (err) {
+        console.error('Ошибка парсинга:', err);
+      }
+    }
   }, []);
 
   const onAuth = async (userData) => {
